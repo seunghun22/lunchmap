@@ -1,0 +1,59 @@
+/* ✅ 화면 전체를 수직/수평 중앙 정렬 */
+.center-body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;        /* 브라우저 전체 높이 사용 */
+  flex-direction: column;   /* 로고와 폼 수직 정렬 */
+}
+
+/* ✅ 로그인/회원가입 박스 꾸미기 */
+.form-wrapper {
+  width: 100%;
+  max-width: 400px;
+  padding: 40px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  background-color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* ✅ 로고 이미지 가운데 정렬 */
+.logo {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.logo img {
+  width: 180px;
+  height: auto;
+}
+
+/* ✅ 폼 입력 필드 */
+.form-container input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+  box-sizing: border-box;
+  font-size: 16px;
+}
+
+.form-container button {
+  width: 100%;
+  padding: 12px;
+  background-color: #007BFF;
+  border: none;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.form-container button:hover {
+  background-color: #0056b3;
+}
+
+.form-container p {
+  margin-top: 10px;
+  text-align: center;
+}

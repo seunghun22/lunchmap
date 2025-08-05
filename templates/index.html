@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>와이즈코아 점심 메뉴 지도</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: sans-serif;
+    }
+    #map {
+      width: 100%;
+      height: 70vh;
+    }
+    #lunch-recommendation {
+      height: 25vh;
+      padding: 35px 15px;
+      background-color: #f9f9f9;
+      border-top: 1px solid #ccc;
+      text-align: center;
+    }
+    #recommend-button {
+      padding: 5px 15px;
+      font-size: 25px;
+      cursor: pointer;
+      margin-top: 5px;
+      margin-bottom: 5px;
+    }
+    #result {
+      font-size: 15px;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+    #comment-box {
+      display: none;
+      padding: 20px;
+      border-top: 1px solid #ccc;
+      background-color: #fff;
+      position: relative;
+    }
+    #comment-list p {
+      margin: 5px 0;
+    }
+    .star {
+      font-size: 25px;
+      color: #ccc;
+      cursor: pointer;
+    }
+    .star.selected {
+      color: gold;
+    }
+    #rating-info {
+      margin-top: 5px;
+      font-size: 14px;
+    }
+    #rating-submit {
+      margin-top: 10px;
+    }
+    #average-rating {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      font-size: 20px;
+      font-weight: bold;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 지도 -->
+  <div id="map"></div>
+
+  <!-- 점심 추천 영역 -->
+  <div id="lunch-recommendation">
+    <h2>🍱 오늘 뭐 먹지?</h2>
+    <button id="recommend-button">점심메뉴 추천받기</button>
+    <div id="result">버튼을 눌러보세요!</div>
+  </div>
+
+  <!-- 댓글 + 별점 입력창 -->
+  <div id="comment-box">
+    <h3 id="comment-title"></h3>
+
+    <!-- 평균 별점 (오른쪽 상단) -->
+    <div id="average-rating">⭐ 평균 별점: - / 5</div>
+
+    <!-- ⭐ 별점 선택 -->
+    <div id="rating-stars">
+      <span class="star" data-value="1">★</span>
+      <span class="star" data-value="2">★</span>
+      <span class="star" data-value="3">★</span>
+      <span class="star" data-value="4">★</span>
+      <span class="star" data-value="5">★</span>
+    </div>
+
+    <div id="rating-info">별점을 선택해주세요.</div>
+    <button id="rating-submit">별점 등록</button>
+
+    <!-- 댓글 목록 -->
+    <div id="comment-list"></div>
+
+    <!-- 댓글 입력 -->
+    <textarea id="comment-input" rows="3" style="width:100%;"></textarea>
+    <br>
+    <button id="comment-submit">댓글 등록</button>
+  </div>
+
+  <!-- Kakao 지도 API -->
+  <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=cbbbf1aa58bda1a4274eba3bcecf5ad8&autoload=false"></script>
+
+  <!-- comment.js + rating.js 연결 -->
+  <script src="{{ url_for('static', filename='js/comment.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/rating.js') }}"></script>
+
+  <!-- 지도 및 추천 기능 -->
+  <script>
+    kakao.maps.load(function () {
+      const mapContainer = document.getElementById('map');
+      const mapOption = {
+        center: new kakao.maps.LatLng(37.5089, 127.0226),
+        level: 2
+      };
+      const map = new kakao.maps.Map(mapContainer, mapOption);
+
+      const markerImage = new kakao.maps.MarkerImage(
+        "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png",
+        new kakao.maps.Size(36, 36)
+      );
+
+      const restaurants = [
+        { name: "싸다김밥", lat: 37.510604190067994, lng: 127.02052018667223 },
+        { name: "마님김밥", lat: 37.51081997319398, lng: 127.02300574881384 },
+        { name: "저스트카츠", lat: 37.5107478900872, lng: 127.02301986491916 },
+        { name: "탕탕집", lat: 37.51064201820906, lng: 127.02303962589788 },
+        { name: "부대찌개", lat: 37.5101642869389, lng: 127.02403763026003 },
+        { name: "순대국", lat: 37.50963517755151, lng: 127.02287531540941 },
+        { name: "보승회관", lat: 37.50850679867281, lng: 127.02219635636679 },
+        { name: "회덮밥,알밥", lat: 37.50782845013411, lng: 127.02394922764212 },
+        { name: "서브웨이", lat: 37.50950926196295, lng: 127.02168203016542 },
+        { name: "뼈해장국집", lat: 37.51097097543822, lng: 127.02257033640775 },
+        { name: "본죽,비빔밥", lat: 37.510563108050185, lng: 127.02340719469315 },
+        { name: "순두부", lat: 37.510491022649205, lng: 127.02343262090795 },
+        { name: "쌀국수", lat: 37.51081583910813, lng: 127.02101508308174 },
+        { name: "시장 분식 국수", lat: 37.509621530803585, lng: 127.0235454532333 },
+        { name: "제육,김치찌개", lat: 37.51009019196013, lng: 127.02283869519349 },
+        { name: "손국시", lat: 37.509986531382246, lng: 127.02307052821175 },
+        { name: "함바집,한식뷔페?", lat: 37.50976133295169, lng: 127.02279900847579 },
+        { name: "마라탕", lat:  37.510382583361285, lng: 127.02498778462514 }
+      ];
+
+      let currentInfoWindow = null;
+
+      restaurants.forEach(r => {
+        const marker = new kakao.maps.Marker({
+          position: new kakao.maps.LatLng(r.lat, r.lng),
+          map: map,
+          title: r.name,
+          image: markerImage
+        });
+
+        const infoWindow = new kakao.maps.InfoWindow({
+          content: `<div style="padding:8px; font-size:16px;">
+                      ${r.name}<br>
+                      <button onclick="showComments('${r.name}')">댓글 보기</button>
+                      <button onclick="showRating('${r.name}')">별점 보기</button>
+                    </div>`
+        });
+
+        r.marker = marker;
+        r.infoWindow = infoWindow;
+
+        kakao.maps.event.addListener(marker, 'click', function () {
+          if (currentInfoWindow) {
+            currentInfoWindow.close();
+            if (currentInfoWindow === infoWindow) {
+              currentInfoWindow = null;
+              return;
+            }
+          }
+          infoWindow.open(map, marker);
+          currentInfoWindow = infoWindow;
+        });
+      });
+
+      const button = document.getElementById("recommend-button");
+      const result = document.getElementById("result");
+
+      button.addEventListener("click", () => {
+        const random = restaurants[Math.floor(Math.random() * restaurants.length)];
+        result.innerHTML = `오늘은 <strong>${random.name}</strong> 어때요? 😋`;
+
+        const moveLatLng = new kakao.maps.LatLng(random.lat, random.lng);
+        map.setCenter(moveLatLng);
+        map.setLevel(2);
+
+        if (currentInfoWindow) currentInfoWindow.close();
+        random.infoWindow.open(map, random.marker);
+        currentInfoWindow = random.infoWindow;
+      });
+    });
+  </script>
+</body>
+</html>

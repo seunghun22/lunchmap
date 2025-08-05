@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>회원가입 - 와이즈코아</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body class="center-body">
+  <div class="form-wrapper">
+    <!-- 로고 -->
+    <div class="logo">
+      <img src="{{ url_for('static', filename='img/1.png') }}" alt="와이즈코아 로고">
+    </div>
+
+    <!-- 회원가입 폼 -->
+    <div class="form-container">
+      <h2>회원가입</h2>
+      <form method="POST" action="/register">
+        <input type="text" name="username" placeholder="아이디" required>
+        <input type="password" name="password" placeholder="비밀번호" required>
+        <input type="password" name="confirm" placeholder="비밀번호 확인" required>
+        <button type="submit">가입하기</button>
+      </form>
+      <p>이미 계정이 있으신가요? <a href="/login">로그인</a></p>
+    </div>
+  </div>
+</body>
+</html>
