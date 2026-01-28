@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><title>3분 데스크 스트레칭</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+<style>
+  .step{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff;margin-bottom:8px}
+  .num{display:inline-block;width:26px;height:26px;border-radius:999px;background:#111827;color:#fff;text-align:center;line-height:26px;margin-right:8px}
+  .btn{padding:10px 14px;border:0;border-radius:10px;background:#111827;color:#fff;cursor:pointer}
+  .timer{font-size:28px;margin-left:8px}
+</style>
+</head>
+<body class="center-body">
+  <div class="form-wrapper" style="max-width:640px">
+    <h2>🧘‍♂️ 3분 데스크 스트레칭</h2>
+    <div class="step"><span class="num">1</span><b>목 옆 20초 × 2</b> — 오른손으로 머리를 살짝 끌어당겨 좌/우</div>
+    <div class="step"><span class="num">2</span><b>어깨 돌리기 20회</b> — 천천히 크게 앞/뒤</div>
+    <div class="step"><span class="num">3</span><b>가슴 열기 30초</b> — 손 깍지 뒤로, 가슴 활짝</div>
+    <div class="step"><span class="num">4</span><b>손목 스트레칭 20초 × 2</b> — 바닥/뒤로 젖히기</div>
+    <div style="margin-top:10px">
+      <button class="btn" id="flow">순서대로 타이머</button>
+      <span id="t" class="timer"></span>
+    </div>
+    <br><a href="{{ url_for('game') }}">← 목록</a>
+  </div>
+<script>
+const seq=[20,20,20,30,20,20]; // 섹션별 초
+const labels=["목 왼쪽","목 오른쪽","어깨 돌리기","가슴 열기","손목1","손목2"];
+document.getElementById('flow').onclick=async()=>{
+  const t=document.getElementById('t');
+  for(let i=0;i<seq.length;i++){
+    let s=seq[i]; t.textContent=`${labels[i]}: ${s}s`;
+    await new Promise(res=>{
+      const id=setInterval(()=>{ s--; t.textContent=`${labels[i]}: ${s}s`; if(s<=0){clearInterval(id);res();} },1000);
+    });
+  }
+  t.textContent="완료! 물도 한 잔 😊";
+};
+</script>
+</body>
+</html>

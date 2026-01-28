@@ -18,4 +18,4 @@ CREATE TABLE IF NOT EXISTS ratings (
 
 conn.commit()
 conn.close()
-print("✅ 별점 DB 초기화 완료")
+print("별점 DB 초기화 완료")

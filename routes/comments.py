@@ -8,7 +8,7 @@ comments_bp = Blueprint("comments", __name__)
 
 DB_PATH = "db/comments.db"
 
-# ✅ 댓글 조회
+# 댓글 조회
 @comments_bp.route("/get_comments", methods=["GET"])
 def get_comments():
     place = request.args.get("place")
@@ -32,7 +32,7 @@ def get_comments():
     return jsonify(result)
 
 
-# ✅ 댓글 등록 (로그인 기반)
+# 댓글 등록 (로그인 기반)
 @comments_bp.route("/add_comment", methods=["POST"])
 def add_comment():
     if "user_id" not in session:
@@ -58,7 +58,7 @@ def add_comment():
     return jsonify({"status": "success"})
 
 
-# ✅ 댓글 삭제 (작성자 본인만 가능)
+# 댓글 삭제 (작성자 본인만 가능)
 @comments_bp.route("/delete_comment", methods=["POST"])
 def delete_comment():
     if "user_id" not in session:

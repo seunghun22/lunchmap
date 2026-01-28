@@ -5,7 +5,7 @@ import sqlite3
 conn = sqlite3.connect("db/comments.db")
 c = conn.cursor()
 
-# ✅ 댓글 테이블만
+# 댓글 테이블만
 c.execute("""
 CREATE TABLE IF NOT EXISTS comments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,4 +18,4 @@ CREATE TABLE IF NOT EXISTS comments (
 
 conn.commit()
 conn.close()
-print("✅ 댓글 DB 초기화 완료")
+print("댓글 DB 초기화 완료")

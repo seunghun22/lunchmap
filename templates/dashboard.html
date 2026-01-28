@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>대시보드</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/1.png') }}">
+</head>
+<body>
+  <div class="dash-wrap">
+
+    <!-- ▼ 배경: 로고 물결 효과 -->
+    <div class="bg-flag" aria-hidden="true" style="opacity:.90"><!-- 필요시 .07~.16로 조절 -->
+      <svg viewBox="0 0 1200 360" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <filter id="wave" x="-40%" y="-50%" width="160%" height="180%" filterUnits="objectBoundingBox">
+            <!-- 노이즈(천 주름) -->
+            <feTurbulence type="fractalNoise" baseFrequency="0.020 0.030"
+                          numOctaves="2" seed="3" result="noise">
+              <!-- 물결 애니메이션 -->
+              <animate attributeName="baseFrequency"
+                       dur="8s"
+                       values="0.018 0.026; 0.034 0.042; 0.026 0.034"
+                       repeatCount="indefinite"/>
+            </feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="noise"
+                               scale="24" xChannelSelector="R" yChannelSelector="G">
+              <!-- 주기적으로 강약 변화 -->
+              <animate attributeName="scale"
+                       dur="8s"
+                       values="14; 38; 22; 30; 14"
+                       repeatCount="indefinite"/>
+            </feDisplacementMap>
+          </filter>
+        </defs>
+
+        <!-- PNG 로고를 SVG 안에 넣어 필터 적용 (같은 도메인이므로 OK) -->
+        <image href="{{ url_for('static', filename='img/1.png') }}"
+               x="0" y="0" width="100%" height="100%"
+               preserveAspectRatio="xMidYMid meet"
+               filter="url(#wave)"/>
+      </svg>
+    </div>
+
+    <!-- ▼ 실제 콘텐츠는 배경 위 레이어 -->
+    <div class="content-layer">
+      <div class="dash-container">
+        <!-- ==== 여기부터 기존 대시보드 카드/내용 그대로 ==== -->
+        <div class="dash-header">
+          <div class="user-chip">
+            <div class="avatar">{{ (session['user_id'][0] if session['user_id'] else 'U')|upper }}</div>
+            <div class="greet">
+              <h2>환영합니다, {{ session['user_id'] }}님!</h2>
+              <p id="motd">좋은 오후예요. 점심은 맛있게 드셨나요? 🍽️</p>
+            </div>
+          </div>
+          <div class="time-badge" id="now">--:--</div>
+        </div>
+
+        <div class="card-grid">
+          <!-- (여기에 기존 카드들 그대로) -->
+          <div class="card">
+            <div class="emoji">🍱</div>
+            <h3>점심메뉴 추천</h3>
+            <p>주변 맛집 지도 & 랜덤 추천</p>
+            <div class="actions">
+              <a href="{{ url_for('lunch') }}"><button class="btn">바로 가기</button></a>
+              <a href="{{ url_for('lunch') }}#map"><button class="btn secondary">지도 보기</button></a>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="emoji">🌤️</div>
+            <h3>논현동 오늘의 날씨</h3>
+            <p id="weather-info">날씨 정보를 불러오는 중...</p>
+          </div>
+
+          <div class="card">
+            <div class="emoji">🎮</div>
+            <h3>미니 게임</h3>
+            <p>잠깐 쉬어가기—2048, 슈팅 등</p>
+            <div class="actions">
+              <a href="{{ url_for('game') }}"><button class="btn">게임 시작</button></a>
+              <a href="{{ url_for('game') }}#list"><button class="btn secondary">게임 목록</button></a>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="emoji">📌</div>
+            <h3>두레이 바로가기</h3>
+            <p>사내 메일 두레이를 이용해보세요</p>
+            <div class="actions">
+              <a href="https://iam.nhncloud.com/login/iam?service=dooray&domain=wisecore.dooray.com&returnUrl=https%3A%2F%2Fiam.nhncloud.com%2Foauth%3Fclient_id%3Dn6ow0YfxCU0EBT1eAdzc%26domain%3Dwisecore.dooray.com%26loginUserCode%3D%26login_hint%3D%26pt%3D%26redirect_uri%3Dhttp%3A%2F%2Fwisecore.dooray.com%2Fauth%2Fsignin%2Fprocess%2Fiam%3FnextUrl%253D%25252F%2526loginUserCode%253D%2526pt%253D%2526login_hint%253D%26response_type%3Dcode%26service%3Ddooray%26state%3DFT9pIK&loginUserCode=&pt=" target="_blank">
+                <button class="btn">dooray</button>
+              </a>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="emoji">🔐</div>
+            <h3>로그아웃</h3>
+            <p>사용이 끝났다면 로그아웃을 잊지 마세요</p>
+            <div class="actions">
+              <a href="{{ url_for('auth.logout') }}"><button class="btn">로그아웃</button></a>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">© Wisecore — Internal Tools</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 시계/인사 + 날씨 로직 (기존 그대로)
+    const nowEl = document.getElementById('now');
+    const motdEl = document.getElementById('motd');
+    function pad(n){ return (n<10?'0':'')+n; }
+    function tick(){
+      const d = new Date();
+      nowEl.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const h = d.getHours();
+      motdEl.textContent =
+        (h<6)  ? "새벽 근무... 커피 한 잔 어떠세요? ☕" :
+        (h<12) ? "좋은 아침입니다! 🙌" :
+        (h<18) ? "좋은 오후예요. 점심은 맛있게 드셨나요? 🍽️" :
+                 "좋은 저녁입니다. 오늘도 고생 많으셨어요! 🌙";
+    }
+    tick(); setInterval(tick, 10_000);
+
+    async function loadWeather(){
+      const lat = 37.512, lon = 127.022;
+      const $el = document.getElementById('weather-info');
+      try {
+        const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+        const aqRes = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=european_aqi`);
+        const wData = await wRes.json(); const aqData = await aqRes.json();
+        const temp = wData?.current_weather?.temperature ?? "-";
+        const wind = wData?.current_weather?.windspeed ?? "-";
+        const code = wData?.current_weather?.weathercode;
+        const icon = (wc=>{
+          if (wc === 0) return "☀️ 맑음";
+          if ([1,2,3].includes(wc)) return "⛅ 구름";
+          if ([45,48].includes(wc)) return "🌫️ 안개";
+          if ([51,53,55,61,63,65,80,81,82].includes(wc)) return "🌧️ 비";
+          if ([71,73,75,85,86].includes(wc)) return "❄️ 눈";
+          if ([95,96,99].includes(wc)) return "⛈️ 뇌우";
+          return "🌤️";
+        })(code);
+        let aqiText = "정보 없음";
+        if (aqData?.hourly?.european_aqi && aqData?.hourly?.time){
+          const nowIso = new Date().toISOString().slice(0,13);
+          const idx = aqData.hourly.time.findIndex(t => t.startsWith(nowIso));
+          const aqi = idx >= 0 ? aqData.hourly.european_aqi[idx] : null;
+          if (aqi != null){
+            aqiText = aqi < 20 ? `좋음 (AQI ${Math.round(aqi)})`
+                    : aqi < 40 ? `양호 (AQI ${Math.round(aqi)})`
+                    : aqi < 60 ? `보통 (AQI ${Math.round(aqi)})`
+                    : aqi < 80 ? `나쁨 (AQI ${Math.round(aqi)})`
+                               : `매우 나쁨 (AQI ${Math.round(aqi)})`;
+          }
+        }
+        $el.innerHTML = `${icon} • <b>${temp}°C</b> · 바람 ${Math.round(wind)} km/h<br><span class="muted">미세먼지: ${aqiText}</span>`;
+      } catch { $el.textContent = "날씨 정보를 불러오지 못했습니다."; }
+    }
+    loadWeather();
+  </script>
+</body>
+</html>

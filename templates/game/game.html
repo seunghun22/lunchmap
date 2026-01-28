@@ -1,0 +1,88 @@
+<!-- templates/game/game.html -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>게임 & 리프레시</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <style>
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+    .card{border:1px solid #e5e7eb;border-radius:14px;padding:16px;background:#fff}
+    .card h3{margin:6px 0 8px}
+    .muted{color:#6b7280;font-size:14px;margin:0 0 8px}
+    .btn{width:100%;padding:10px;border:0;border-radius:10px;background:#111827;color:#fff;cursor:pointer}
+    .tag{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px;margin-right:6px}
+    .section-title{margin:0 0 8px}
+  </style>
+</head>
+<body class="center-body">
+  <div class="form-wrapper" style="max-width:860px">
+    <h2>🎮 가볍게 즐기고, 🧘‍♀️ 가볍게 쉬어요</h2>
+
+    <h3 class="section-title">게임</h3>
+    <div class="grid">
+      <div class="card">
+        <span class="tag">퍼즐</span>
+        <h3>🧮 2048</h3>
+        <p class="muted">클래식 숫자 합치기</p>
+        <a href="{{ url_for('game_2048') }}"><button class="btn">시작</button></a>
+      </div>
+      <div class="card">
+        <span class="tag">아케이드</span>
+        <h3>💥 총알 피하기</h3>
+        <p class="muted">키보드↑↓←→로 회피하며 생존</p>
+        <a href="{{ url_for('game_gun') }}"><button class="btn">시작</button></a>
+      </div>
+      <div class="card">
+        <span class="tag">보드</span>
+        <h3>⚫⚪ 오목 (vs 컴퓨터)</h3>
+        <p class="muted">15×15, 5목 먼저 만들기 — 난이도 선택</p>
+        <a href="{{ url_for('game_omok') }}"><button class="btn">시작</button></a>
+      </div>
+      <div class="card">
+        <span class="tag">반응속도</span>
+        <h3>⚡ 반응속도 테스트</h3>
+        <p class="muted">화면이 초록색이 되면 클릭!</p>
+        <a href="{{ url_for('game_reaction') }}"><button class="btn">시작</button></a>
+      </div>
+      <div class="card">
+        <span class="tag">타자</span>
+        <h3>⌨️ 1분 타자 연습</h3>
+        <p class="muted">간단 문장으로 WPM 측정</p>
+        <a href="{{ url_for('game_typing') }}"><button class="btn">시작</button></a>
+      </div>
+    </div>
+
+    <h3 class="section-title" style="margin-top:16px">잠깨기 · 스트레칭</h3>
+    <div class="grid">
+      <div class="card">
+        <span class="tag">눈 건강</span>
+        <h3>👀 눈 휴식(20-20-20)</h3>
+        <p class="muted">20분마다 20초, 6m(20ft) 바라보기</p>
+        <a href="{{ url_for('eye_exercise') }}"><button class="btn">시작</button></a>
+      </div>
+      <div class="card">
+        <span class="tag">목/어깨</span>
+        <h3>🧘‍♂️ 3분 데스크 스트레칭</h3>
+        <p class="muted">짧게 굳은 승모근 풀기</p>
+        <a href="{{ url_for('stretch_desk') }}"><button class="btn">시작</button></a>
+      </div>
+      <div class="card">
+        <span class="tag">호흡</span>
+        <h3>🌬️ 1분 박스 브리딩</h3>
+        <p class="muted">4-4-4-4 호흡으로 리셋</p>
+        <a href="{{ url_for('breathe_box') }}"><button class="btn">시작</button></a>
+      </div>
+      <div class="card">
+        <span class="tag">상식퀴즈</span>
+        <h3>🧠 간단 상식 퀴즈</h3>
+        <p class="muted">100문제 중 무작위로 도전!</p>
+        <a href="{{ url_for('game_quiz') }}"><button class="btn">시작</button></a>
+      </div>
+    </div>
+      
+    <br>
+    <a href="{{ url_for('dashboard') }}">← 대시보드로 돌아가기</a>
+  </div>
+</body>
+</html>

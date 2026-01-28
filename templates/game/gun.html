@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>총알 피하기 — 업그레이드(캐주얼)</title>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#0f162b; --accent:#60a5fa; --danger:#f43f5e; --ok:#22c55e; --muted:#9aa3b2; --text:#e5e7eb;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Pretendard,Apple SD Gothic Neo,Malgun Gothic,sans-serif}
+    canvas{display:block;background:radial-gradient(1200px 800px at 50% 40%, #1b2748 0%, #0f1730 60%, #0b1020 100%)}
+
+    /* HUD */
+    .hud{position:fixed;inset:12px auto auto 12px;z-index:5;display:flex;gap:10px;align-items:center}
+    .pill{background:rgba(255,255,255,.08);backdrop-filter:blur(6px);padding:8px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12);display:flex;gap:8px;align-items:center}
+    .sep{width:1px;height:18px;background:rgba(255,255,255,.15);}
+    .tag{font-size:12px;color:var(--muted)}
+    .value{font-weight:700}
+
+    /* Buttons (top-right) */
+    .top-right{position:fixed;right:12px;top:12px;display:flex;gap:8px;z-index:6}
+    button{appearance:none;border:0;cursor:pointer;border-radius:10px;padding:8px 12px;background:#1f2937;color:#fff;font-weight:600}
+    button.outline{background:transparent;border:1px solid rgba(255,255,255,.15)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+
+    /* Overlay */
+    #overlay{position:fixed;inset:0;background:rgba(11,16,32,.72);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:10}
+    .card{background:var(--panel);padding:22px;border-radius:16px;min-width:min(560px, 92vw);text-align:center;border:1px solid rgba(255,255,255,.12);box-shadow:0 10px 40px rgba(0,0,0,.4)}
+    .card h1{margin:0 0 8px;font-size:28px}
+    .row{display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+
+    /* Mobile controls */
+    .stick{position:fixed;left:16px;bottom:16px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);touch-action:none;z-index:8}
+    .knob{position:absolute;left:50%;top:50%;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.14);transform:translate(-50%,-50%)}
+    .dashBtn{position:fixed;right:16px;bottom:24px;padding:14px 18px;border-radius:999px;font-weight:800;background:linear-gradient(135deg,#4f46e5,#06b6d4);color:#fff;z-index:8;border:none}
+
+    /* Toast */
+    .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 14px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:20}
+    .toast.show{opacity:1}
+  </style>
+</head>
+<body>
+  <div class="hud">
+    <div class="pill"><span class="tag">⏱ 생존</span><span class="value" id="t">0.0s</span></div>
+    <div class="pill"><span class="tag">⭐ 점수</span><span class="value" id="score">0</span><span class="sep"></span><span class="tag">🏆 최고</span><span class="value" id="best">0</span></div>
+    <div class="pill"><span class="tag">🛡 쉴드</span><span class="value" id="shield">0</span><span class="sep"></span><span class="tag">⚡ 대시</span><span class="value" id="dash">0</span></div>
+  </div>
+
+  <div class="top-right">
+    <button id="pause" class="outline">일시정지 (P)</button>
+    <button id="mute" class="outline">사운드: 켬 (M)</button>
+    <button id="help" class="outline">도움말</button>
+    <a href="{{ url_for('dashboard') }}"><button class="outline">대시보드</button></a>
+  </div>
+
+  <div id="overlay">
+    <div class="card">
+      <h1 id="ovTitle">총알 피하기</h1>
+      <p id="ovDesc" style="margin:6px 0 10px;color:var(--muted)">
+        방향키/WASD 또는 왼쪽 조이스틱으로 이동 · 대시(Shift/Space)
+        · 파워업: <b>Slow(총알 느려짐)</b> / Shield / Dash. 최대한 오래 살아남으세요!
+      </p>
+      <div class="row" style="margin-top:8px">
+        <button id="start">▶ 시작</button>
+        <button id="restart" class="outline">↻ 다시</button>
+        <a href="{{ url_for('dashboard') }}"><button class="outline">← 대시보드</button></a>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="c"></canvas>
+
+  <!-- 모바일 조작 -->
+  <div class="stick" id="stick" aria-hidden="true"><div class="knob" id="knob"></div></div>
+  <button class="dashBtn" id="dashBtn" aria-hidden="true">대시</button>
+
+  <div class="toast" id="toast">Near miss! +50</div>
+
+<script>
+(() => {
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0;
+  function resize(){
+    W = canvas.width = Math.floor(window.innerWidth * DPR);
+    H = canvas.height = Math.floor(window.innerHeight * DPR);
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ===== Utilities =====
+  const rand = (a,b) => a + Math.random()*(b-a);
+  const clamp = (v,min,max) => Math.max(min, Math.min(max,v));
+  const dist2 = (x1,y1,x2,y2) => { const dx=x2-x1, dy=y2-y1; return dx*dx+dy*dy; };
+  const nowMs = () => performance.now();
+
+  // ===== Audio (beeps only) =====
+  const audio = {
+    ctx: null, mute:false,
+    init(){ if (this.ctx || this.mute) return; try{ this.ctx = new (window.AudioContext||window.webkitAudioContext)(); }catch{ this.mute=true; }},
+    beep(freq=880, dur=0.07, vol=0.03){ if(this.mute||!this.ctx) return; const t=this.ctx.currentTime; const o=this.ctx.createOscillator(); const g=this.ctx.createGain(); o.frequency.value=freq; o.type='square'; g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0001, t+dur); o.connect(g).connect(this.ctx.destination); o.start(t); o.stop(t+dur); }
+  }
+
+  // ===== Game State (캐주얼 튜닝) =====
+  const state = {
+    running:false, paused:false, over:false,
+    time:0, score:0, best:+(localStorage.getItem('dodgerBest')||0),
+    spawnRate: 0.65,
+    difficulty: 0,
+    lastSpawn: 0,
+    bullets: [], poolB: [],
+    particles: [], poolP: [],
+    powerups: [], poolU: [],
+    // ★ 슬로우(총알만 느려짐)
+    slowMul: 1,    // 1=정상, 0.4~0.6 정도면 체감 확실
+    slowTTL: 0,    // 남은 지속시간(초)
+  };
+
+  // ★ 탄 개수 상한
+  const MAX_BULLETS_BASE = 36;
+
+  // ===== Player =====
+  const player = {
+    x: W/2, y: H/2, r: 12*DPR,
+    baseSpeed: 260, vx:0, vy:0,
+    color:'#93c5fd', speedMul:1, invul:0, shield:0, dash:2, dashCd:0
+  };
+
+  function reset(){
+    state.running=false; state.paused=false; state.over=false;
+    state.time=0; state.score=0; state.difficulty=0; state.lastSpawn=0;
+    state.bullets.length=0; state.particles.length=0; state.powerups.length=0;
+    state.slowMul=1; state.slowTTL=0;          // ★ 슬로우 초기화
+    player.x=W/2; player.y=H/2; player.vx=player.vy=0; player.speedMul=1;
+    player.invul=1.2;                            // 시작 무적
+    player.shield=1;                             // 시작 쉴드
+    player.dash=3;                               // 시작 대시
+    player.dashCd=0;
+    updateHUD();
+  }
+
+  // ===== Spawn Patterns =====
+  function spawnPattern(dt){
+    const t=state.time, d=state.difficulty;
+
+    if (t < 3.0) return; // 워밍업
+
+    const near = state.bullets.reduce((n,b)=> n + (dist2(b.x,b.y,player.x,player.y) < (180*DPR)**2), 0);
+    if (near >= 6) return;
+
+    const maxBullets = Math.floor(MAX_BULLETS_BASE + d*1.4);
+    if (state.bullets.length >= maxBullets) return;
+
+    const rate = state.spawnRate + d*0.14;
+    if (t - state.lastSpawn < 1/rate) return;
+    state.lastSpawn = t;
+
+    const r = Math.random();
+    if (r < 0.35) ring( 4 + Math.min(10, Math.floor(d*1.0)) );
+    else if (r < 0.65) aimedBurst( 2 + Math.floor(Math.min(5, d*0.6)) );
+    else if (r < 0.85) spiral( 7 + Math.floor(d*0.8) );
+    else wallSweep();
+
+    if (Math.random() < 0.22) spawnPowerup();
+  }
+
+  function ring(n){
+    const ang0 = Math.random()*Math.PI*2;
+    const sp = 120 + Math.min(280, state.difficulty*22);
+    const safeR = Math.max(W,H)*0.68;
+    for(let i=0;i<n;i++){
+      const a=ang0 + i*(Math.PI*2/n);
+      const x = player.x + Math.cos(a)*safeR;
+      const y = player.y + Math.sin(a)*safeR;
+      createBullet(x,y, Math.atan2(player.y-y, player.x-x), sp);
+    }
+  }
+  function aimedBurst(n){
+    const sp = 150 + Math.min(300, state.difficulty*24);
+    for(let i=0;i<n;i++){
+      const side = Math.floor(rand(0,4));
+      let x=0,y=0; const m=20*DPR;
+      if(side===0){ x= -m; y=rand(0,H);}
+      if(side===1){ x= W+m; y=rand(0,H);}
+      if(side===2){ x= rand(0,W); y=-m;}
+      if(side===3){ x= rand(0,W); y=H+m;}
+      const ang = Math.atan2(player.y-y, player.x-x) + rand(-0.25,0.25);
+      createBullet(x,y, ang, sp+rand(-20,20));
+    }
+  }
+  function spiral(n){
+    const sp = 135 + Math.min(240, state.difficulty*20);
+    const cx = Math.random()<.5? 0 : W;
+    const cy = Math.random()<.5? 0 : H;
+    const base = Math.atan2(player.y-cy, player.x-cx);
+    for(let i=0;i<n;i++){
+      const a = base + i*0.20;
+      createBullet(cx,cy,a, sp);
+    }
+  }
+  function wallSweep(){
+    const fromLeft = Math.random()<.5;
+    const rows = 4 + Math.floor(Math.min(8, state.difficulty*0.6));
+    const gap = H/(rows+1);
+    const sp = 150 + state.difficulty*18;
+    for(let i=1;i<=rows;i++){
+      const y=i*gap + rand(-8,8)*DPR;
+      const x = fromLeft? -30*DPR : W+30*DPR;
+      createBullet(x,y, fromLeft?0:Math.PI, sp);
+    }
+  }
+
+  // ===== Entities =====
+  function createBullet(x,y,ang,speed){
+    const b = state.poolB.pop() || {x:0,y:0,vx:0,vy:0,r:6*DPR,life:0};
+    b.x=x; b.y=y; b.vx=Math.cos(ang)*speed; b.vy=Math.sin(ang)*speed; b.life=0; b.r = 6*DPR;
+    state.bullets.push(b);
+  }
+  function killBullet(idx){ const b=state.bullets[idx]; if(!b) return; state.poolB.push(b); state.bullets.splice(idx,1); }
+
+  function createParticle(x,y, n=6){
+    for(let i=0;i<n;i++){
+      const p = state.poolP.pop() || {x:0,y:0,vx:0,vy:0,a:1,life:0};
+      const a = rand(0,Math.PI*2); const sp = rand(30,160);
+      p.x=x; p.y=y; p.vx=Math.cos(a)*sp; p.vy=Math.sin(a)*sp; p.a=1; p.life=0;
+      state.particles.push(p);
+    }
+  }
+  function spawnPowerup(){
+    const u = state.poolU.pop() || {x:0,y:0,t:'',life:0};
+    const types = ['slow','shield','dash'];
+    u.t = types[Math.floor(rand(0, types.length))];
+    const margin = 40*DPR;
+    u.x = rand(margin, W-margin); u.y = rand(margin, H-margin); u.life=0;
+    state.powerups.push(u);
+  }
+
+  // ===== Input =====
+  const keys = {};
+  window.addEventListener('keydown', e=>{ keys[e.key]=true; if(e.key==='m'||e.key==='M'){toggleMute()} if(e.key==='p'||e.key==='P'){togglePause()} });
+  window.addEventListener('keyup', e=>{ keys[e.key]=false; });
+
+  // Gamepad-ish mobile stick
+  const stick = document.getElementById('stick');
+  const knob = document.getElementById('knob');
+  const dashBtn = document.getElementById('dashBtn');
+  let stickActive=false, stickCx=0, stickCy=0, stickDx=0, stickDy=0;
+  function stickStart(e){ stickActive=true; const r=stick.getBoundingClientRect(); stickCx=r.left+r.width/2; stickCy=r.top+r.height/2; moveKnob(stickCx,stickCy); }
+  function stickMove(e){ if(!stickActive) return; const t = e.touches? e.touches[0] : e; const x=t.clientX,y=t.clientY; const dx=x-stickCx, dy=y-stickCy; const max=52; const d=Math.hypot(dx,dy); const m = d>max? max/d : 1; knob.style.transform=`translate(${(dx*m)}px, ${(dy*m)}px)`; stickDx = (dx/max); stickDy = (dy/max); }
+  function stickEnd(){ stickActive=false; knob.style.transform='translate(-50%,-50%)'; stickDx=stickDy=0; }
+  function moveKnob(x,y){ knob.style.left = (x - stick.getBoundingClientRect().left) + 'px'; knob.style.top = (y - stick.getBoundingClientRect().top) + 'px'; }
+  stick.addEventListener('touchstart', stickStart, {passive:true});
+  stick.addEventListener('touchmove', stickMove, {passive:true});
+  stick.addEventListener('touchend', stickEnd);
+  stick.addEventListener('mousedown', stickStart);
+  window.addEventListener('mousemove', stickMove);
+  window.addEventListener('mouseup', stickEnd);
+  dashBtn.addEventListener('click', tryDash);
+
+  // ===== HUD + Overlay =====
+  const elT = document.getElementById('t');
+  const elScore = document.getElementById('score');
+  const elBest = document.getElementById('best'); elBest.textContent = state.best;
+  const elShield = document.getElementById('shield');
+  const elDash = document.getElementById('dash');
+  const overlay = document.getElementById('overlay');
+  const ovTitle = document.getElementById('ovTitle');
+  const ovDesc = document.getElementById('ovDesc');
+  const startBtn = document.getElementById('start');
+  const restartBtn = document.getElementById('restart');
+  const pauseBtn = document.getElementById('pause');
+  const muteBtn = document.getElementById('mute');
+  const helpBtn = document.getElementById('help');
+  const toast = document.getElementById('toast');
+
+  function showOverlay(title, desc){ ovTitle.textContent=title; ovDesc.textContent=desc||''; overlay.style.display='flex'; }
+  function hideOverlay(){ overlay.style.display='none'; }
+  function showToast(msg){ toast.textContent=msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),1400); }
+  function updateHUD(){ elT.textContent = state.time.toFixed(1)+'s'; elScore.textContent = Math.floor(state.score); elBest.textContent = state.best; elShield.textContent = player.shield; elDash.textContent = player.dash; }
+
+  document.getElementById('help').onclick = () => showOverlay('조작 방법', 'WASD/방향키 이동 · Shift/Space/대시 · 파워업: Slow(총알 느려짐)/Shield/Dash. M: 음소거, P: 일시정지');
+  startBtn.onclick = () => { audio.init(); reset(); state.running=true; hideOverlay(); };
+  restartBtn.onclick = () => { audio.init(); reset(); state.running=true; hideOverlay(); };
+  pauseBtn.onclick = togglePause;
+  muteBtn.onclick = toggleMute;
+  function togglePause(){ if(!state.running) return; state.paused=!state.paused; pauseBtn.textContent = state.paused? '계속 (P)' : '일시정지 (P)'; }
+  function toggleMute(){ audio.mute=!audio.mute; if(!audio.mute) audio.init(); muteBtn.textContent = '사운드: ' + (audio.mute? '끔' : '켬') + ' (M)'; }
+
+  // ===== Game Loop =====
+  let last = nowMs();
+  function loop(){
+    requestAnimationFrame(loop);
+    if (!state.running || state.paused) { draw(); return; }
+    const t = nowMs();
+    let dt = (t - last)/1000; if (dt>0.05) dt=0.05; last=t;
+
+    // 난이도 상승
+    state.time += dt; state.difficulty = Math.min(20, state.time*0.28);
+
+    // Player move (플레이어는 슬로우 영향 없음)
+    const a = (keys['ArrowLeft']||keys['a']||keys['A']?-1:0) + (keys['ArrowRight']||keys['d']||keys['D']?1:0) + stickDx*1;
+    const b = (keys['ArrowUp']||keys['w']||keys['W']?-1:0) + (keys['ArrowDown']||keys['s']||keys['S']?1:0) + stickDy*1;
+    const len = Math.hypot(a,b);
+    const speed = player.baseSpeed * (player.speedMul) * (1 + state.difficulty*0.02);
+    let mx=0,my=0; if(len>0){ mx = (a/Math.max(1,len))*speed*dt; my = (b/Math.max(1,len))*speed*dt; }
+    player.x = clamp(player.x + mx*DPR, player.r, W-player.r);
+    player.y = clamp(player.y + my*DPR, player.r, H-player.r);
+
+    // Timers
+    if (player.invul>0) player.invul -= dt;
+    if (player.dashCd>0) player.dashCd -= dt;
+
+    // ★ 슬로우 유지/복귀(총알만)
+    if (state.slowTTL > 0){
+      state.slowTTL -= dt;
+      if (state.slowTTL < 0) state.slowTTL = 0;
+    } else {
+      // 빠르게 정상으로 스무스 복귀
+      state.slowMul += (1 - state.slowMul) * 3 * dt;
+      if (state.slowMul > 0.999) state.slowMul = 1;
+    }
+
+    // Spawns
+    spawnPattern(dt);
+
+    // Bullets update (★ 슬로우 적용)
+    for (let i=state.bullets.length-1;i>=0;i--){
+      const b = state.bullets[i];
+      b.x += b.vx * dt * state.slowMul;
+      b.y += b.vy * dt * state.slowMul;
+      b.life += dt;
+      if (b.x<-40*DPR||b.x>W+40*DPR||b.y<-40*DPR||b.y>H+40*DPR){ killBullet(i); }
+    }
+
+    // Powerups update
+    for(let i=state.powerups.length-1;i>=0;i--){
+      const u=state.powerups[i]; u.life+=dt;
+      if(u.life>15){ state.poolU.push(u); state.powerups.splice(i,1); continue; }
+      if (dist2(u.x,u.y,player.x,player.y) < (player.r+12*DPR)**2){
+        pickup(u.t); state.poolU.push(u); state.powerups.splice(i,1);
+        createParticle(u.x,u.y,10); audio.beep(660,0.05,0.05);
+      }
+    }
+
+    // Particles
+    for (let i=state.particles.length-1;i>=0;i--){
+      const p=state.particles[i]; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=0.98; p.vy*=0.98; p.life+=dt; p.a = Math.max(0, 1 - p.life/0.6);
+      if(p.a<=0){ state.poolP.push(p); state.particles.splice(i,1); }
+    }
+
+    // Collisions
+    for (let i=state.bullets.length-1;i>=0;i--){ const b = state.bullets[i]; if (circleHit(player,b)){ onHit(b,i); break; } }
+
+    // Score: survive over time
+    state.score += (1 + state.difficulty*0.12) * dt;
+
+    // HUD
+    updateHUD();
+
+    // Draw
+    draw();
+  }
+  requestAnimationFrame(loop);
+
+  function circleHit(a,b){
+    const rr = a.r + b.r; return dist2(a.x,a.y,b.x,b.y) < rr*rr;
+  }
+  function onHit(b, idx){
+    if (player.invul>0){ return; }
+    if (player.shield>0){
+      player.shield--; player.invul=0.7;
+      createParticle(player.x,player.y,22); audio.beep(200,0.1,0.05);
+      killBullet(idx); showToast('쉴드!');
+      updateHUD(); return;
+    }
+    // game over
+    state.over=true; state.running=false; audio.beep(120,0.12,0.06);
+    createParticle(player.x,player.y,36);
+    if (state.score>state.best){ state.best=Math.floor(state.score); localStorage.setItem('dodgerBest', state.best); }
+    showOverlay('게임 오버 💀', `생존 ${state.time.toFixed(1)}초 · 점수 ${Math.floor(state.score)} · 최고 ${state.best}`);
+  }
+
+  // ★ 파워업: 슬로우 = 총알 느려짐, 플레이어 속도 변화 없음
+  function pickup(t){
+    if (t==='slow'){
+      state.slowMul = 0.5;       // 총알 50% 속도
+      state.slowTTL = 3.5;       // 3.5초 유지
+      showToast('슬로우! 총알 느려짐');
+    }
+    if (t==='shield'){ player.shield = clamp(player.shield+1,0,3); showToast('쉴드 +1'); }
+    if (t==='dash'){ player.dash = clamp(player.dash+1,0,4); showToast('대시 +1'); }
+    updateHUD();
+  }
+
+  function tryDash(){
+    if(player.dash<=0||player.dashCd>0) return;
+    player.dash--;
+    player.dashCd=0.85;
+    player.invul=0.36;
+    const ang = Math.atan2(
+      (keys['ArrowDown']||keys['s']||stickDy>0?1:0) - (keys['ArrowUp']||keys['w']||stickDy<0?1:0),
+      (keys['ArrowRight']||keys['d']||stickDx>0?1:0) - (keys['ArrowLeft']||keys['a']||stickDx<0?1:0)
+    );
+    const dx = Math.cos(ang), dy = Math.sin(ang);
+    const distPx = 140*DPR;
+    player.x = clamp(player.x + dx*distPx, player.r, W-player.r);
+    player.y = clamp(player.y + dy*distPx, player.r, H-player.r);
+    createParticle(player.x,player.y,18); audio.beep(520,0.06,0.05); updateHUD();
+  }
+  window.addEventListener('keydown', e=>{ if(e.key==='Shift'||e.key===' '){ tryDash(); }});
+
+  // ===== Rendering =====
+  function draw(){
+    // background faint grid
+    ctx.clearRect(0,0,W,H);
+    ctx.save();
+    ctx.globalAlpha = 0.08; ctx.fillStyle = '#93c5fd';
+    for (let x=0; x<W; x+= 40*DPR){ ctx.fillRect(x, 0, 1*DPR, H); }
+    for (let y=0; y<H; y+= 40*DPR){ ctx.fillRect(0, y, W, 1*DPR); }
+    ctx.restore();
+
+    // ★ 슬로우 비주얼 힌트(은은한 보라 필름)
+    if (state.slowMul < 0.99){
+      ctx.save();
+      ctx.globalAlpha = clamp((1 - state.slowMul)*0.6, 0, 0.35);
+      ctx.fillStyle = '#a78bfa';
+      ctx.fillRect(0,0,W,H);
+      ctx.restore();
+    }
+
+    // powerups
+    state.powerups.forEach(u=>{
+      ctx.save();
+      ctx.translate(u.x,u.y);
+      ctx.fillStyle = u.t==='slow'? '#a78bfa' : (u.t==='shield'? '#22c55e' : '#f59e0b');
+      ctx.beginPath(); ctx.arc(0,0,10*DPR,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.font = (12*DPR)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(u.t==='slow'?'S':(u.t==='shield'?'🛡':'⚡'), 0, 1*DPR);
+      ctx.restore();
+    });
+
+    // bullets
+    ctx.fillStyle = '#f87171';
+    state.bullets.forEach(b=>{ ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill(); });
+
+    // player
+    ctx.save();
+    ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
+    ctx.fillStyle = player.invul>0 ? '#bae6fd' : '#60a5fa';
+    ctx.fill();
+    if (player.shield>0){ ctx.lineWidth=3*DPR; ctx.strokeStyle='rgba(34,197,94,.9)'; ctx.stroke(); }
+    ctx.restore();
+
+    // particles
+    state.particles.forEach(p=>{ ctx.globalAlpha=p.a; ctx.fillStyle='#e5e7eb'; ctx.fillRect(p.x,p.y,2*DPR,2*DPR); ctx.globalAlpha=1; });
+  }
+
+  // Start screen
+  showOverlay('총알 피하기', '방향키/WASD 또는 왼쪽 조이스틱으로 이동 · 대시(Shift/Space/버튼) · 파워업: Slow(총알 느려짐)/Shield/Dash. 최대한 오래 살아남으세요!');
+})();
+</script>
+</body>
+</html>

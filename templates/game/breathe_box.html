@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><title>1분 박스 브리딩</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+<style>
+  .stage{font-size:22px;margin:10px 0}
+  .timer{font-size:42px}
+  .btn{padding:10px 14px;border:0;border-radius:10px;background:#111827;color:#fff;cursor:pointer}
+</style>
+</head>
+<body class="center-body">
+  <div class="form-wrapper" style="max-width:560px">
+    <h2>🌬️ Box Breathing (4-4-4-4)</h2>
+    <p class="stage" id="stage">준비</p>
+    <div class="timer" id="sec">4</div>
+    <button class="btn" id="start">시작</button>
+    <br><br><a href="{{ url_for('game') }}">← 목록</a>
+  </div>
+<script>
+const phases=[["들이마시기",4],["멈추기",4],["내쉬기",4],["멈추기",4]];
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+async function runOnce(){
+  const s=document.getElementById('stage'), n=document.getElementById('sec');
+  for(const [name,dur] of phases){
+    s.textContent=name; for(let i=dur;i>0;i--){ n.textContent=i; await sleep(1000); }
+  }
+}
+document.getElementById('start').onclick=async()=>{
+  for(let t=0;t<4;t++){ await runOnce(); } // 4사이클 = 1분
+  document.getElementById('stage').textContent="완료!";
+};
+</script>
+</body>
+</html>

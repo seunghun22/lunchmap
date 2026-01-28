@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>⌨️ 1분 타자 연습</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+<style>
+  :root{ --ok:#16a34a; --bad:#ef4444; --muted:#6b7280; --card:#fff; --line:#e5e7eb }
+  body{ background:#f8fafc }
+  .wrap{ max-width:840px; margin:40px auto; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px 18px }
+  .row{ display:flex; gap:12px; align-items:center; flex-wrap:wrap }
+  .stat{ display:flex; gap:10px; flex-wrap:wrap; font-size:14px; background:#f3f4f6; padding:8px 10px; border-radius:10px }
+  .pill{ padding:4px 10px; border-radius:999px; background:#eef2ff; color:#3730a3; font-weight:600 }
+  .muted{ color:var(--muted) }
+  .area{ margin-top:14px; border:1px solid var(--line); border-radius:12px; padding:14px 12px; background:#fff }
+  #target{ font-size:20px; line-height:1.6; word-break:keep-all }
+  #target span{ position:relative; padding:2px 1px; border-radius:6px }
+  #target span.ok{ background:rgba(22,163,74,.12) }
+  #target span.bad{ background:rgba(239,68,68,.14) }
+  #target span.caret::after{ content:""; position:absolute; right:-1px; top:8%; width:2px; height:84%; background:#111827; animation:blink 1s infinite }
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+  textarea{ width:100%; border:1px solid var(--line); border-radius:12px; padding:12px; resize:none; height:110px; font-size:18px }
+  .toolbar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px }
+  button{ appearance:none; border:0; background:#111827; color:#fff; border-radius:10px; padding:10px 12px; cursor:pointer }
+  button.secondary{ background:#f3f4f6; color:#111827 }
+  .preview{ margin-top:10px; font-size:14px; color:var(--muted) }
+  .done{ background:rgba(22,163,74,.1); border:1px dashed #16a34a }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <h2 style="margin:0">⌨️ 1분 타자 연습</h2>
+        <div class="muted">문장을 따라 입력하세요. 60초 동안 WPM/타수/정확도를 실시간으로 보여줍니다.</div>
+      </div>
+      <div class="row">
+        <label class="muted">언어</label>
+        <select id="lang">
+          <option value="ko">한국어</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="stat">
+      <div><b>남은 시간</b> <span id="time" class="pill">60s</span></div>
+      <div><b>WPM</b> <span id="wpm" class="pill">0</span></div>
+      <div><b>타수</b> <span id="kpm" class="pill">0 /분</span></div>
+      <div><b>정확도</b> <span id="acc" class="pill">100%</span></div>
+      <div><b>입력</b> <span id="typed" class="pill">0 chars</span></div>
+      <div><b>정답</b> <span id="correct" class="pill">0 chars</span></div>
+    </div>
+
+    <div class="area" id="targetBox">
+      <div id="target"></div>
+      <div class="preview" id="preview"></div>
+    </div>
+
+    <div class="area">
+      <textarea id="input" placeholder="여기에 타이핑하세요… (시작하면 타이머가 자동으로 출발합니다)"></textarea>
+      <div class="toolbar">
+        <button id="restart">다시 시작</button>
+        <a href="{{ url_for('game') }}"><button class="secondary">← 게임 목록</button></a>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // 문장 뱅크(확장)
+  const SAMPLES_KO = [
+    "꾸준함은 재능을 이기는 가장 현실적인 방법이다. 오늘의 작은 연습이 내일의 자신감을 만든다.",
+    "바른 자세와 고른 호흡은 타이핑 속도를 자연스럽게 올려 준다. 느리게 정확하게, 그러다 보면 빠르고 정확해진다.",
+    "집중은 짧게, 휴식은 가볍게. 번아웃을 피하는 효율의 기술이다. 실수는 학습의 흔적이니 고쳐 쓰며 앞으로 나아가자.",
+    "작은 개선이 날마다 쌓이면 어느 순간 큰 도약이 된다. 포기하지 않는 꾸준함이 결국 실력을 만든다.",
+    "오늘의 오타는 내일의 정답을 준비한다. 틀린 줄 알아야 고칠 수 있고, 고쳐야 성장한다.",
+    "기록은 거울이다. 숫자는 변명하지 않으니, 오늘의 수치를 담담히 받아들이고 내일을 설계하자.",
+    "손목은 가볍게, 어깨는 편안하게. 긴장을 풀면 생각이 열리고 손끝이 빨라진다.",
+    "속도보다 리듬이 먼저다. 박자가 맞아야 문장도 춤을 춘다.",
+    "배운 것을 바로 써 보면 기억이 오래 남는다. 익힘은 반복 속에 뿌리를 내린다.",
+    "한 번에 완벽하려 하지 말자. 완벽은 과정의 별명일 뿐 종착지가 아니다.",
+    "습관이 의지를 이긴다. 좋은 루틴은 의지력을 아껴 주는 가장 똑똑한 장치다.",
+    "문장은 숨을 가진다. 쉼표에서 숨 쉬고 마침표에서 잠시 멈추면 손끝도 덜 흔들린다.",
+    "키보드 배열이 익숙해질수록 시선은 모니터에 머물고 어깨는 덜 긴장한다.",
+    "짧은 구간을 정확하게 여러 번, 그다음 길이를 늘리자. 달리기와 타이핑은 닮았다.",
+    "새로운 도전은 두려움을 동반한다. 두려움은 준비의 신호라고 생각해 보자.",
+    "오늘의 1%가 모여 내일의 100%가 된다. 작은 진전이라도 분명한 전진이다."
+  ];
+
+  const SAMPLES_EN = [
+    "Consistency beats talent when talent does not practice. Small steps today build confidence tomorrow.",
+    "Good posture and steady breathing naturally improve typing speed. Slow is smooth, and smooth is fast.",
+    "Focus in short bursts and rest lightly to avoid burnout. Mistakes are traces of learning—edit and move forward.",
+    "Tiny improvements stacked daily turn into a big leap. Keep going and the curve will bend in your favor.",
+    "Accuracy builds speed. Aim for clean lines first, and the pace will follow.",
+    "Numbers are honest mirrors. Read your stats calmly and plan your next move.",
+    "Relax the shoulders and breathe. A calm mind makes faster hands.",
+    "Practice short passages with precision, then stretch the distance.",
+    "Fear often means you are growing; greet it with preparation.",
+    "One percent today becomes one hundred over time; progress compounds.",
+    "Typing is rhythm as much as motion; keep the beat and the speed rises.",
+    "Habits carry you when willpower is low—design good ones.",
+    "Look at the screen, not the keys; let muscle memory guide you.",
+    "Stop chasing perfection in one run; iterate your way there.",
+    "A clean posture prevents fatigue and preserves consistency.",
+    "A quick break can save an hour later; rest before you need it."
+  ];
+
+  // ===== DOM =====
+  const input  = document.getElementById('input');
+  const targetEl = document.getElementById('target');
+  const previewEl = document.getElementById('preview');
+  const langSel = document.getElementById('lang');
+  const ui = {
+    time: document.getElementById('time'),
+    wpm: document.getElementById('wpm'),
+    kpm: document.getElementById('kpm'),
+    acc: document.getElementById('acc'),
+    typed: document.getElementById('typed'),
+    correct: document.getElementById('correct'),
+  };
+
+  // ===== 상태 =====
+  const LIMIT = 60;
+  let timer = null, startedAt = null, remaining = LIMIT;
+  let lang = 'ko', bank = [], idx = 0, cur = "", curArr = [];
+  let passedChars = 0;                  // 완료 문장들의 총 길이
+  let isComposing = false;              // 한글 조합 중 플래그
+
+  // ===== 유틸 =====
+  const toGraphemes = s => Array.from((s ?? "").normalize());
+  const normalizeCompare = s => (s ?? "")
+      .replace(/\r?\n/g, "")           // 개행 제거
+      .replace(/\s+/g, " ")            // 다중 공백 -> 하나
+      .trim();
+
+  function pickBank(){
+    const src = (lang === 'ko' ? SAMPLES_KO : SAMPLES_EN).slice();
+    // 섞기
+    for (let i = src.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [src[i], src[j]] = [src[j], src[i]];
+    }
+    bank = src;
+  }
+
+  function renderTarget(text){
+    targetEl.innerHTML = "";
+    curArr = toGraphemes(text);
+    for(const ch of curArr){
+      const span = document.createElement('span');
+      span.textContent = ch;
+      targetEl.appendChild(span);
+    }
+    setCaret(0);                        // 커서만, OK/BAD 없음
+  }
+
+  function setCaret(pos){
+    [...targetEl.children].forEach(s=>s.classList.remove('caret'));
+    if (pos < targetEl.children.length) targetEl.children[pos].classList.add('caret');
+  }
+
+  function loadSentence(){
+    cur = bank[idx % bank.length];
+    renderTarget(cur);
+    const next = bank[(idx+1) % bank.length];
+    previewEl.textContent = "다음 문장: " + next;
+    input.value = "";
+    input.focus();
+  }
+
+  function paintStats(totalTyped, totalCorrect){
+    const elapsedMin = startedAt ? (LIMIT - remaining)/60 : 0;
+    const kpm = elapsedMin>0 ? Math.round(totalTyped / elapsedMin) : 0;
+    const wpm = elapsedMin>0 ? Math.round((totalCorrect/5) / elapsedMin) : 0;
+    const acc = totalTyped>0 ? Math.round((totalCorrect/totalTyped)*100) : 100;
+    ui.kpm.textContent = `${kpm} /분`;
+    ui.wpm.textContent = wpm;
+    ui.acc.textContent = acc + "%";
+    ui.typed.textContent = `${totalTyped} chars`;
+    ui.correct.textContent = `${totalCorrect} chars`;
+  }
+
+  function reset(full=true){
+    remaining = LIMIT; ui.time.textContent = `${remaining}s`;
+    clearInterval(timer); timer = null; startedAt = null;
+    idx = 0; passedChars = 0;
+    document.getElementById('targetBox').classList.remove('done');
+    input.disabled = false;
+    if (full){ lang = langSel.value; pickBank(); }
+    loadSentence();
+    paintStats(0,0);
+  }
+
+  function computeNow(){
+    // 현재 입력(조합 중이면 그대로 두되, 비교는 조합 끝난 뒤 처리)
+    const typedNow = toGraphemes(input.value);
+    const L = Math.max(typedNow.length, curArr.length);
+    let correctNow = 0;
+
+    for(let i=0;i<L;i++){
+      const span = targetEl.children[i];
+      if (span){
+        span.classList.remove('ok','bad');
+        if (i < typedNow.length){
+          if (typedNow[i] === curArr[i]) span.classList.add('ok');
+          else span.classList.add('bad');
+        }
+      }
+      if (i < typedNow.length && i < curArr.length && typedNow[i] === curArr[i]) correctNow++;
+    }
+
+    setCaret(Math.min(typedNow.length, curArr.length));
+    const totalTyped   = passedChars + typedNow.length;
+    const totalCorrect = passedChars + correctNow;
+    return { totalTyped, totalCorrect, typedLen: typedNow.length };
+  }
+
+  function tryAdvance(force=false){
+    // 공백/개행 무시 비교
+    const ok = normalizeCompare(input.value) === normalizeCompare(cur);
+    if (ok || force){
+      passedChars += curArr.length;
+      idx++;
+      loadSentence();
+      const { totalTyped, totalCorrect } = computeNow();
+      paintStats(totalTyped, totalCorrect);
+      return true;
+    }
+    return false;
+  }
+
+  // ===== 이벤트 =====
+  langSel.onchange = () => reset(true);
+  document.getElementById('restart').onclick = () => reset(false);
+
+  input.addEventListener('compositionstart', ()=>{ isComposing = true; });
+  input.addEventListener('compositionend', ()=>{ isComposing = false; handleInput(); });
+
+  input.addEventListener('keydown', (e) => {
+    // Enter → 줄바꿈 방지 & 문장 완료 시 다음으로
+    if (e.key === 'Enter'){
+      e.preventDefault();
+      tryAdvance(true);   // 완성됐으면 넘어가고, 아니면 무시
+    }
+    // Tab으로도 다음 문장 시도(편의)
+    if (e.key === 'Tab'){
+      e.preventDefault();
+      tryAdvance(true);
+    }
+  });
+
+  function handleInput(){
+    if (!startedAt){
+      // 공백만 입력 시 타이머 시작 안 함
+      if (input.value.trim().length === 0) return;
+      startedAt = Date.now();
+      timer = setInterval(tick, 1000);
+    }
+    const { totalTyped, totalCorrect } = computeNow();
+    paintStats(totalTyped, totalCorrect);
+
+    // 정확히 일치하면 자동 진행(개행/여분 공백 무시)
+    if (normalizeCompare(input.value) === normalizeCompare(cur)){
+      tryAdvance(true);
+    }
+  }
+  input.addEventListener('input', ()=>{ if (!isComposing) handleInput(); });
+
+  function tick(){
+    remaining--; ui.time.textContent = `${remaining}s`;
+    const { totalTyped, totalCorrect } = computeNow();
+    paintStats(totalTyped, totalCorrect);
+    if (remaining <= 0){
+      clearInterval(timer); timer = null;
+      input.disabled = true;
+      document.getElementById('targetBox').classList.add('done');
+    }
+  }
+
+  // 시작
+  reset(true);
+</script>
+</body>
+</html>

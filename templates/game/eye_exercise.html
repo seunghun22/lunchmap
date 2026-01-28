@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><title>눈 휴식 20-20-20</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+<style>
+  .timer{font-size:42px;margin:8px 0}
+  .tips{color:#6b7280}
+  .btn{padding:10px 14px;border:0;border-radius:10px;background:#111827;color:#fff;cursor:pointer}
+  .grid{display:grid;gap:8px}
+</style>
+</head>
+<body class="center-body">
+  <div class="form-wrapper" style="max-width:560px">
+    <h2>👀 20-20-20 눈 휴식</h2>
+    <p class="tips">20분마다 20초 동안 6m(20ft) 거리의 물체를 바라보세요.</p>
+    <div class="grid">
+      <div>
+        <h3>⏱️ 20초 타이머</h3>
+        <div id="sec" class="timer">20</div>
+        <button class="btn" id="start">시작</button>
+      </div>
+      <div>
+        <h3>👓 가벼운 눈 운동</h3>
+        <ol class="tips">
+          <li>먼 곳 → 가까운 곳 번갈아 초점 맞추기 10회</li>
+          <li>좌우·상하로 눈동자 천천히 5회</li>
+          <li>깜박깜박 10회로 건조함 완화</li>
+        </ol>
+      </div>
+    </div>
+    <br><a href="{{ url_for('game') }}">← 목록</a>
+  </div>
+<script>
+let t;
+document.getElementById('start').onclick=()=>{
+  clearInterval(t); let s=20; const el=document.getElementById('sec'); el.textContent=s;
+  t=setInterval(()=>{ s--; el.textContent=s; if(s<=0){ clearInterval(t); alert('완료! 조금 더 멀리 봐도 좋아요 👀'); } },1000);
+};
+</script>
+</body>
+</html>

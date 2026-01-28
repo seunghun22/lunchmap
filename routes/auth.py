@@ -19,14 +19,14 @@ def login():
 
     if user:
         session["user_id"] = username
-        return redirect(url_for("index"))
+        return redirect(url_for("dashboard"))  # 로그인 후 대시보드로 이동
     else:
         return "로그인 실패: 아이디 또는 비밀번호가 틀렸습니다.", 401
 
 @auth_bp.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("index"))
+    return redirect(url_for("auth.login"))  # 보통 로그아웃 후 로그인 페이지로
 
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():

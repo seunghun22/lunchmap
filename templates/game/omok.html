@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>오목 (vs 컴퓨터)</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+<style>
+  :root{ --bg:#f5f7fb; --panel:#ffffff; --line:#e5e7eb; --muted:#6b7280; --black:#111827; --accent:#2563eb }
+  body{ background:var(--bg); }
+  .wrap{ max-width:980px; margin:28px auto; padding:18px }
+  .board-card{ display:grid; grid-template-columns: 1fr 360px; gap:18px }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px }
+  @media (max-width: 980px){ .board-card{ grid-template-columns:1fr } }
+  h2{ margin:0 0 8px }
+  .muted{ color:var(--muted) }
+  canvas{ width:100%; height:auto; display:block; border-radius:12px; background:#f8f8f2 }
+  .btn{ appearance:none; border:0; border-radius:10px; padding:10px 12px; background:var(--black); color:#fff; cursor:pointer }
+  .btn.secondary{ background:#f3f4f6; color:#111827 }
+  .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+  .pill{ padding:4px 10px; border-radius:999px; background:#eef2ff; color:#3730a3; font-weight:600 }
+  .log{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; line-height:1.5; height:240px; overflow:auto; border:1px dashed var(--line); padding:10px; border-radius:10px; background:#fff }
+  .stat{ display:flex; gap:10px; flex-wrap:wrap; margin:8px 0 12px }
+  select{ padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:#fff }
+  .hint{ font-size:12px; color:var(--muted) }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="board-card">
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <h2>오목 (Gomoku) <span class="pill" id="turn">검은돌 차례</span></h2>
+          <div class="muted">15×15 바둑판, 5목 먼저 만들면 승리. 기본 Gomoku(렌주룰 미적용).</div>
+        </div>
+        <div class="row">
+          <label class="muted">색</label>
+          <select id="side">
+            <option value="black" selected>흑(선공)</option>
+            <option value="white">백(후공)</option>
+          </select>
+          <label class="muted" style="margin-left:10px">난이도</label>
+          <select id="level" title="Easy≈이전 Normal, Normal≈이전 Hard, Hard↑강화 탐색">
+            <option value="easy">Easy</option>
+            <option value="normal" selected>Normal</option>
+            <option value="hard">Hard</option>
+            <option value="hell">HELL 🔥</option><!-- ★ 추가 -->
+          </select>
+        </div>
+      </div>
+
+      <canvas id="board" width="720" height="720"></canvas>
+
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="restart">↻ 다시 시작</button>
+        <button class="btn secondary" id="undo">↩ 되돌리기(한 수)</button>
+        <a href="{{ url_for('game') }}"><button class="btn secondary">← 게임 목록</button></a>
+      </div>
+      <div class="hint" id="hint" style="margin-top:6px">검은돌(사용자) 먼저 시작. 클릭으로 착수합니다.</div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 6px">기록</h3>
+      <div class="stat">
+        <div><b id="lblUser">흑(사용자)</b> <span class="pill" id="sUser">0</span></div>
+        <div><b id="lblAI">백(AI)</b> <span class="pill" id="sAI">0</span></div>
+      </div>
+      <div id="log" class="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ===== Config =====
+  const N = 15;               // board size
+  const WIN = 5;              // 5 in a row
+  const PAD = 28;             // canvas padding
+  const SIZE = 720;           // canvas size(px)
+  const CELL = (SIZE - PAD*2) / (N-1); // grid gap
+  const BLACK = 1, WHITE = 2, EMPTY = 0;
+
+  // Pattern weights (공격/수비 공통)
+  const SCORE = {
+    FIVE:     1_000_000,
+    OPEN4:      120_000,
+    FOUR:        15_000,
+    OPEN3:        7_000,
+    BROKEN3:      2_400,
+    OPEN2:          600,
+    TWO:            180,
+    ONE:             20,
+    CENTER:           8,     // 중앙 선호(동률 깨기용)
+  };
+
+  // ===== State / DOM =====
+  const cvs = document.getElementById('board');
+  const ctx = cvs.getContext('2d');
+  const turnEl = document.getElementById('turn');
+  const logEl = document.getElementById('log');
+  const sUserEl = document.getElementById('sUser');
+  const sAIEl = document.getElementById('sAI');
+  const lblUser = document.getElementById('lblUser');
+  const lblAI = document.getElementById('lblAI');
+  const levelSel = document.getElementById('level');
+  const sideSel  = document.getElementById('side');
+  const hintEl   = document.getElementById('hint');
+
+  let board, moves, over, userColor=BLACK, aiColor=WHITE, curTurn=BLACK;
+  let userScore=0, aiScore=0;
+  let lastMove = null;   // ★ 마지막 착수 표시용
+
+  // ===== Utils =====
+  function other(c){ return c===BLACK?WHITE:BLACK; }
+  function on(x,y){ return x>=0&&y>=0&&x<N&&y<N; }
+  function centerBias(x,y){
+    const cx = (N-1)/2, cy=(N-1)/2;
+    return SCORE.CENTER * (1 - (Math.abs(x-cx)+Math.abs(y-cy))/(N));
+  }
+
+  // ===== Init / UI =====
+  function init(){
+    board = Array.from({length:N}, ()=>Array(N).fill(EMPTY));
+    moves = []; over=false;
+    lastMove = null;   // ★ 초기화
+
+    userColor = (sideSel.value==='black') ? BLACK : WHITE;
+    aiColor   = other(userColor);
+    curTurn   = BLACK; // 흑 선공(룰)
+
+    // 라벨 갱신
+    lblUser.textContent = (userColor===BLACK?'흑':'백') + '(사용자)';
+    lblAI.textContent   = (aiColor===BLACK?'흑':'백') + '(AI)';
+    hintEl.textContent  = (userColor===BLACK?'검은돌(사용자) 먼저 시작.':'백(사용자) — 흑(AI)부터 시작합니다.');
+
+    drawBoard(); updateTurn(); logEl.textContent="";
+
+    // 만약 사용자가 백이면 AI(흑)가 선수로 둔다(중앙 선호)
+    if (userColor===WHITE){
+      setTimeout(()=> aiMove(), 60);
+    }
+  }
+
+  function updateTurn(){
+    turnEl.textContent = (curTurn===BLACK?'검은돌':'백') + ' 차례';
+  }
+  function log(msg){ logEl.textContent += msg+"\n"; logEl.scrollTop = logEl.scrollHeight; }
+
+  // ===== Drawing =====
+  function drawBoard(){
+    ctx.clearRect(0,0,SIZE,SIZE);
+    // board
+    ctx.fillStyle = '#f3e9c6';
+    ctx.fillRect(0,0,SIZE,SIZE);
+
+    // grid
+    ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
+    for (let i=0;i<N;i++){
+      const p = PAD + i*CELL;
+      ctx.beginPath(); ctx.moveTo(PAD, p); ctx.lineTo(SIZE-PAD, p); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(p, PAD); ctx.lineTo(p, SIZE-PAD); ctx.stroke();
+    }
+    // star points
+    const stars = [3,7,11];
+    ctx.fillStyle = '#333';
+    stars.forEach(i=>{
+      stars.forEach(j=>{
+        const x = PAD + i*CELL, y = PAD + j*CELL;
+        ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+      });
+    });
+
+    // stones
+    for(let y=0;y<N;y++){
+      for(let x=0;x<N;x++){
+        if (board[y][x]===EMPTY) continue;
+        const isBlack = (board[y][x]===BLACK);
+        drawStone(x,y, isBlack ? '#111827' : '#cbd5e1', isBlack ? '#334155' : '#ddd');
+      }
+    }
+
+    // ★ 마지막 착수 표시(항상 최상단에)
+    if (lastMove){
+      drawLast(lastMove.x, lastMove.y);
+    }
+  }
+
+  function drawStone(x,y, fill, edge){
+    const cx = PAD + x*CELL, cy = PAD + y*CELL, r = CELL*0.42;
+    const grd = ctx.createRadialGradient(cx-r*0.3, cy-r*0.3, r*0.2, cx, cy, r);
+    grd.addColorStop(0, edge); grd.addColorStop(1, fill);
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fillStyle = grd; ctx.fill();
+  }
+
+  // ★ 작은 빨간 점(흰 테두리)으로 마지막 수 표시
+  function drawLast(x,y){
+    const cx = PAD + x*CELL, cy = PAD + y*CELL;
+    const r  = CELL * 0.12;                 // 크기 조절: 0.10~0.16 추천
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.fillStyle   = '#ef4444';            // 빨강
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)'; // 흰 테두리
+    ctx.lineWidth   = 3;
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  function coordToCell(mx,my){
+    const x = Math.round((mx - PAD)/CELL);
+    const y = Math.round((my - PAD)/CELL);
+    if (x<0||y<0||x>=N||y>=N) return null;
+    const gx = PAD + x*CELL, gy = PAD + y*CELL;
+    if (Math.hypot(mx-gx,my-gy) > CELL*0.5) return null; // 점에서 너무 멀면 무시
+    return {x,y};
+  }
+
+  // ===== Click =====
+  cvs.addEventListener('click', (e)=>{
+    if (over || curTurn!==userColor) return;
+    const rect = cvs.getBoundingClientRect();
+    const mx = (e.clientX-rect.left)*(cvs.width/rect.width);
+    const my = (e.clientY-rect.top )*(cvs.height/rect.height);
+    const cell = coordToCell(mx,my);
+    if (!cell) return;
+    if (board[cell.y][cell.x] !== EMPTY) return;
+
+    if (place(cell.x, cell.y, userColor, "사용자")) return;
+    setTimeout(aiMove, 10);
+  });
+
+  // ===== Place / Win =====
+  function place(x,y, who, whoLabel){
+    board[y][x] = who;
+    moves.push({x,y,who});
+    lastMove = {x,y,who};   // ★ 마지막 수 갱신
+    drawBoard();
+
+    if (checkWin(x,y,who)){
+      over = true;
+      log(`${whoLabel} 승리! (${who===BLACK?'흑':'백'})`);
+      if (who===userColor) { userScore++; sUserEl.textContent=userScore; }
+      else { aiScore++; sAIEl.textContent=aiScore; }
+      turnEl.textContent = '게임 종료';
+      return true;
+    }
+    curTurn = other(who);
+    updateTurn();
+    return false;
+  }
+
+  const DIRS = [[1,0],[0,1],[1,1],[1,-1]];
+  function checkWin(x,y,who){
+    for (const [dx,dy] of DIRS){
+      let cnt = 1;
+      let i=1; while(on(x+dx*i,y+dy*i) && board[y+dy*i][x+dx*i]===who){ cnt++; i++; }
+      i=1; while(on(x-dx*i,y-dy*i) && board[y-dy*i][x-dx*i]===who){ cnt++; i++; }
+      if (cnt>=WIN) return true;
+    }
+    return false;
+  }
+
+  // ===== Candidate finder =====
+  function anyStone(){
+    for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(board[y][x]!==EMPTY) return true;
+    return false;
+  }
+  function nearStone(x,y,dist){
+    for(let dy=-dist; dy<=dist; dy++){
+      for(let dx=-dist; dx<=dist; dx++){
+        const nx=x+dx, ny=y+dy;
+        if (on(nx,ny) && board[ny][nx]!==EMPTY) return true;
+      }
+    }
+    return false;
+  }
+  function* neighborIter(){
+    if (!anyStone()){ yield {x:Math.floor(N/2), y:Math.floor(N/2)}; return; }
+    const seen = new Set();
+    for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+      if (board[y][x]===EMPTY && nearStone(x,y,2)){
+        const k=y*N+x; if (seen.has(k)) continue; seen.add(k); yield {x,y};
+      }
+    }
+  }
+  function candidates(){
+    return Array.from(neighborIter());
+  }
+
+  // ===== Evaluation =====
+  function makesFive(x,y,who){
+    board[y][x]=who;
+    const ok = checkWin(x,y,who);
+    board[y][x]=EMPTY;
+    return ok;
+  }
+  function evaluatePoint(x,y, who){
+    let total = 0;
+    for (const [dx,dy] of DIRS){
+      total += lineScore(x,y,dx,dy,who);
+    }
+    total += centerBias(x,y);
+    return total;
+  }
+  function lineScore(x,y,dx,dy,who){
+    // 양방향 연속/개방 여부
+    let count = 1, openL=0, openR=0;
+
+    // R+
+    let i=1; while(on(x+dx*i,y+dy*i) && board[y+dy*i][x+dx*i]===who){ count++; i++; }
+    if (on(x+dx*i,y+dy*i) && board[y+dy*i][x+dx*i]===EMPTY) openR=1;
+
+    // L+
+    i=1; while(on(x-dx*i,y-dy*i) && board[y-dy*i][x-dx*i]===who){ count++; i++; }
+    if (on(x-dx*i,y-dy*i) && board[y-dy*i][x-dx*i]===EMPTY) openL=1;
+
+    if (count>=5) return SCORE.FIVE;
+    if (count===4 && openL && openR) return SCORE.OPEN4;
+    if (count===4 && (openL||openR)) return SCORE.FOUR;
+    if (count===3 && openL && openR) return SCORE.OPEN3;
+    if (count===3 && (openL||openR)) return SCORE.BROKEN3;
+    if (count===2 && openL && openR) return SCORE.OPEN2;
+    if (count===2 && (openL||openR)) return SCORE.TWO;
+    if (count===1 && (openL||openR)) return SCORE.ONE;
+    return 0;
+  }
+  function heuristic(){
+    // 전체 평가(우리-상대)
+    const me = aiColor, opp = userColor;
+    let sMe=0, sOpp=0;
+    for(const p of candidates()){
+      sMe  += evaluatePoint(p.x,p.y, me);
+      sOpp += evaluatePoint(p.x,p.y, opp);
+    }
+    return sMe*1.1 - sOpp;
+  }
+
+  // ===== AI core =====
+  function aiMove(){
+    if (over || curTurn!==aiColor) return;
+
+    const level = levelSel.value;
+
+    // 1) 즉승
+    let best = findImmediate(aiColor); if (best){ place(best.x,best.y,aiColor,"AI"); return; }
+    // 2) 즉수 방어
+    best = findImmediate(userColor);  if (best){ place(best.x,best.y,aiColor,"AI(방어)"); return; }
+
+    // 3) 후보 평가 (공통)
+    let cand = candidates().map(c=>{
+      const atk = evaluatePoint(c.x,c.y, aiColor);
+      const def = evaluatePoint(c.x,c.y, userColor);
+      return {...c, score: atk*1.1 + def + centerBias(c.x,c.y)};
+    }).sort((a,b)=>b.score-a.score);
+
+    let move;
+    if (level==='easy'){
+      const k = Math.min(5, cand.length);
+      move = cand[Math.floor(Math.random()*k)] || cand[0];
+    }else if (level==='normal'){
+      const K = Math.min(8, cand.length);
+      move = twoPly(cand.slice(0,K)) || cand[0];
+    }else if (level==='hard'){
+      const K = Math.min(10, cand.length);
+      move = searchAB(cand.slice(0,K), 2) || twoPly(cand.slice(0,8)) || cand[0];
+    }else{ // === 'hell' ===
+      move = hellMove() || cand[0];
+    }
+    place(move.x, move.y, aiColor, "AI");
+  }
+
+  function findImmediate(who){
+    for (const p of neighborIter()){
+      if (board[p.y][p.x]!==EMPTY) continue;
+      if (makesFive(p.x,p.y,who)) return p;
+    }
+    return null;
+  }
+
+  // 이전 hard 수준(2수 얕은 탐색)
+  function twoPly(list){
+    let best=null, bestVal=-Infinity;
+    for (const mv of list){
+      board[mv.y][mv.x]=aiColor;
+      if (checkWin(mv.x,mv.y,aiColor)){ board[mv.y][mv.x]=EMPTY; return mv; }
+
+      // 상대 즉승 방지 페널티
+      let replyWin = findImmediate(userColor);
+      let val;
+      if (replyWin){
+        val = mv.score - 60000;
+      }else{
+        const oppCands = candidates().map(c=>{
+          const atk = evaluatePoint(c.x,c.y,userColor);
+          const def = evaluatePoint(c.x,c.y,aiColor);
+          return {...c,score: atk*1.1 + def};
+        }).sort((a,b)=>b.score-a.score).slice(0,6);
+
+        let worst = +Infinity;
+        for (const r of oppCands){
+          board[r.y][r.x]=userColor;
+          const h = heuristic();
+          board[r.y][r.x]=EMPTY;
+          if (h<worst) worst=h;
+        }
+        val = worst;
+      }
+      board[mv.y][mv.x]=EMPTY;
+
+      if (val>bestVal){ bestVal=val; best=mv; }
+    }
+    return best;
+  }
+
+  // Hard: 알파–베타 2수(루트는 준비된 후보만)
+  function searchAB(topMoves, depth){
+    let best=null, bestVal=-Infinity;
+    for (const mv of topMoves){
+      board[mv.y][mv.x]=aiColor;
+      const val = -negamax(depth-1, -Infinity, +Infinity, userColor);
+      board[mv.y][mv.x]=EMPTY;
+      if (val>bestVal){ bestVal=val; best=mv; }
+    }
+    return best;
+  }
+  function negamax(depth, alpha, beta, cur){
+    // 즉승 수 반환
+    const win = findImmediate(cur);
+    if (win) return 900000;
+
+    if (depth===0) return heuristic();
+
+    // 후보
+    let cand = candidates().map(c=>{
+      const atk = evaluatePoint(c.x,c.y, cur);
+      const def = evaluatePoint(c.x,c.y, other(cur));
+      return {...c, score: atk*1.1 + def + centerBias(c.x,c.y)};
+    }).sort((a,b)=>b.score-a.score).slice(0,10); // 가지치기
+
+    let best = -Infinity;
+    for (const mv of cand){
+      board[mv.y][mv.x]=cur;
+      const val = -negamax(depth-1, -beta, -alpha, other(cur));
+      board[mv.y][mv.x]=EMPTY;
+      if (val>best) best=val;
+      if (best>alpha) alpha=best;
+      if (alpha>=beta) break; // cut
+    }
+    return best;
+  }
+
+  // ===== HELL 모드: 시간예산 + 반복깊이 + 알파–베타 + 캐시 =====
+  const HELL = {
+    BUDGET_MS: 900,   // 환경 따라 400~900ms 조절
+    MAX_DEPTH: 7,     // 6~7 추천 (깊을수록 강하지만 느려짐)
+    ORDER_K: 14,      // 루트/자식 후보 상한
+  };
+  const TT = new Map(); // 간단 Transposition Table
+
+  function boardKey(curTurn){
+    let s = curTurn + '|';
+    for(let y=0;y<N;y++){
+      for(let x=0;x<N;x++) s += board[y][x];
+      s += ';';
+    }
+    return s;
+    // (성능 필요 시 Zobrist hash로 교체 가능)
+  }
+
+  function hellMove(){
+    // 즉승/방어 우선
+    let m = findImmediate(aiColor); if (m) return m;
+    m = findImmediate(userColor);   if (m) return m;
+
+    // 강한 전처리 정렬
+    const base = getOrderedCandidates(aiColor);
+    if (!base.length) return {x:Math.floor(N/2), y:Math.floor(N/2), score:0};
+
+    const deadline = Date.now() + HELL.BUDGET_MS;
+    let best = base[0], bestScore = -Infinity;
+
+    const killers = Array(HELL.MAX_DEPTH+1).fill(null);
+
+    for (let depth = 2; depth <= HELL.MAX_DEPTH; depth++){
+      let curBest = null, curVal = -Infinity;
+      const rootMoves = base.slice(0, HELL.ORDER_K);
+
+      for (const mv of rootMoves){
+        if (Date.now() > deadline) break;
+        board[mv.y][mv.x] = aiColor;
+        const val = -negamax_hell(depth-1, -Infinity, +Infinity, userColor, deadline, killers);
+        board[mv.y][mv.x] = EMPTY;
+        if (val > curVal){ curVal = val; curBest = mv; }
+      }
+      if (curBest){ best = curBest; bestScore = curVal; killers[depth] = best; }
+      if (Date.now() > deadline) break;
+    }
+    return best;
+  }
+
+  function negamax_hell(depth, alpha, beta, cur, deadline, killers){
+    if (Date.now() > deadline) return heuristic();
+
+    const k = boardKey(cur);
+    const tt = TT.get(k);
+    if (tt && tt.depth >= depth){
+      return tt.val;
+    }
+
+    const win = findImmediate(cur);
+    if (win) return 900000 - (HELL.MAX_DEPTH - depth);
+
+    if (depth === 0) return heuristic();
+
+    let cand = getOrderedCandidates(cur).slice(0, HELL.ORDER_K);
+
+    // killer move 우선
+    const kd = killers[depth];
+    if (kd){
+      const idx = cand.findIndex(p => p.x===kd.x && p.y===kd.y);
+      if (idx>0) { const t=cand[idx]; cand.splice(idx,1); cand.unshift(t); }
+    }
+
+    let best = -Infinity;
+    for (const mv of cand){
+      board[mv.y][mv.x] = cur;
+      const val = -negamax_hell(depth-1, -beta, -alpha, other(cur), deadline, killers);
+      board[mv.y][mv.x] = EMPTY;
+      if (val > best) best = val;
+      if (best > alpha) alpha = best;
+      if (alpha >= beta) break;
+    }
+
+    TT.set(k, {depth, val: best});
+    return best;
+  }
+
+  function getOrderedCandidates(forColor){
+    const opp = other(forColor);
+    const arr = candidates().map(c=>{
+      const atk = evaluatePoint(c.x,c.y, forColor);
+      const def = evaluatePoint(c.x,c.y, opp);
+      const bonus = patternBoost(c.x,c.y,forColor) + 0.6*patternBoost(c.x,c.y,opp);
+      return {...c, score: atk*1.1 + def + bonus + centerBias(c.x,c.y)};
+    });
+    arr.sort((a,b)=>b.score-a.score);
+    return arr;
+  }
+
+  function patternBoost(x,y,who){
+    let b = 0, open3dirs = 0;
+    board[y][x] = who;
+
+    if (checkWin(x,y,who)) b += 120000;
+    for (const [dx,dy] of DIRS){
+      const info = scanLine(x,y,dx,dy,who);
+      if (info.open4) b += 30000;
+      if (info.four ) b += 8000;
+      if (info.open3){ b += 3000; open3dirs++; }
+    }
+    if (open3dirs >= 2) b += 20000; // double-three 근사
+
+    board[y][x] = EMPTY;
+    return b;
+  }
+
+  function scanLine(x,y,dx,dy,who){
+    let run = 1, openL=0, openR=0;
+
+    // +방향
+    let i=1; while(on(x+dx*i,y+dy*i) && board[y+dy*i][x+dx*i]===who){ run++; i++; }
+    if (on(x+dx*i,y+dy*i) && board[y+dy*i][x+dx*i]===EMPTY) openR=1;
+
+    // -방향
+    i=1; while(on(x-dx*i,y-dy*i) && board[y-dy*i][x-dx*i]===who){ run++; i++; }
+    if (on(x-dx*i,y-dy*i) && board[y-dy*i][x-dx*i]===EMPTY) openL=1;
+
+    const open4 = (run===4 && openL && openR);
+    const four  = (run===4 && (openL||openR));
+    const open3 = (run===3 && openL && openR);
+    return {open4, four, open3};
+  }
+
+  // ===== Controls =====
+  document.getElementById('restart').onclick = ()=> init();
+  document.getElementById('undo').onclick = ()=>{
+    if (moves.length<1 || over) return;
+    const last = moves.pop(); board[last.y][last.x]=EMPTY;
+    // 마지막이 AI 착수였으면 사용자 것도 한 번 더 롤백(항상 사용자 차례로)
+    if (moves.length && last.who===aiColor){
+      const last2 = moves.pop(); if (last2){ board[last2.y][last2.x]=EMPTY; }
+    }
+    // ★ 남은 마지막 수로 갱신 (없으면 null)
+    lastMove = moves.length ? moves[moves.length-1] : null;
+
+    over=false; curTurn=userColor; drawBoard(); updateTurn(); log("되돌리기");
+  };
+  levelSel.onchange = init;
+  sideSel.onchange  = init;
+
+  // start
+  init();
+})();
+</script>
+</body>
+</html>

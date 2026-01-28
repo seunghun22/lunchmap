@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><title>반응속도 테스트</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+<style>
+  .box{width:520px;height:260px;border-radius:16px;background:#111827;color:#fff;
+       display:flex;align-items:center;justify-content:center;cursor:pointer;text-align:center}
+  .best{margin-top:10px;color:#6b7280}
+</style>
+</head>
+<body class="center-body">
+  <div class="form-wrapper" style="max-width:560px">
+    <h2>⚡ 반응속도 테스트</h2>
+    <p>박스가 <b style="color:#16a34a">초록색</b>이 되면 즉시 클릭!</p>
+    <div id="box" class="box">클릭해서 시작</div>
+    <div id="msg" style="margin-top:10px;"></div>
+    <div id="best" class="best">기록: -</div>
+    <br><a href="{{ url_for('game') }}">← 목록</a>
+  </div>
+<script>
+let timer, readyAt, bests=[];
+const box = document.getElementById('box'), msg=document.getElementById('msg'), best=document.getElementById('best');
+let state='idle';
+function renderBest(){ if(!bests.length) return best.textContent='기록: -';
+  const m = Math.min(...bests); best.textContent = `최고 기록: ${m} ms (최근 ${bests.length}회)`; }
+function start(){
+  state='wait'; box.style.background='#111827'; box.textContent='초록색이 되면 클릭!';
+  const delay = 1000 + Math.random()*2000;
+  timer=setTimeout(()=>{ state='go'; box.style.background='#16a34a'; box.textContent='지금 클릭!'; readyAt=performance.now(); }, delay);
+}
+box.onclick=()=>{
+  if(state==='idle'){ msg.textContent=''; start(); return; }
+  if(state==='wait'){ clearTimeout(timer); msg.textContent='너무 빨라요! 다시'; state='idle'; box.style.background='#111827'; box.textContent='클릭해서 시작'; return; }
+  if(state==='go'){ const t=Math.round(performance.now()-readyAt); msg.textContent=`반응속도: ${t} ms`; bests.push(t); if(bests.length>5)bests.shift(); renderBest(); state='idle'; box.style.background='#111827'; box.textContent='클릭해서 다시 시작'; }
+};
+renderBest();
+</script>
+</body>
+</html>

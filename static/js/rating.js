@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // 외부에서 접근 가능하도록 window로 등록
   window.selectedRating = 0;
 
-  // ⭐ 별 클릭 이벤트
+  // 별 클릭 이벤트
   ratingStars.addEventListener("click", function (e) {
     if (e.target.tagName === "SPAN") {
       window.selectedRating = parseInt(e.target.dataset.value);
@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  // ⭐ UI 업데이트 함수
+  // UI 업데이트 함수
   window.updateStarUI = function (rating) {
     const stars = ratingStars.querySelectorAll("span");
     stars.forEach((star, index) => {
@@ -22,7 +22,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   };
 
-  // ⭐ 평균 별점 불러오기 함수
+  // 평균 별점 불러오기 함수
   window.loadAverageRating = function (placeName) {
     averageRating.innerText = "⭐ 평균 별점 불러오는 중...";
     fetch(`/get_rating?place=${encodeURIComponent(placeName)}`)
@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", function () {
       });
   };
 
-  // ⭐ 별점 등록 버튼
+  // 별점 등록 버튼
   ratingSubmit.addEventListener("click", () => {
     if (!window.selectedPlace || window.selectedRating === 0) {
       alert("별점을 선택해주세요!");
@@ -67,7 +67,7 @@ document.addEventListener("DOMContentLoaded", function () {
       });
   });
 
-  // 👉 외부에서 직접 호출할 때 사용할 함수
+  // 외부에서 직접 호출할 때 사용할 함수
   window.showRating = function (placeName) {
     window.selectedPlace = placeName;
     window.selectedRating = 0;

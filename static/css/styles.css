@@ -1,4 +1,8 @@
-/* ✅ 화면 전체를 수직/수평 중앙 정렬 */
+/* ===============================
+   공통 레이아웃 / 폼 (로그인·회원가입)
+   =============================== */
+
+/* 화면 전체를 수직/수평 중앙 정렬 */
 .center-body {
   display: flex;
   justify-content: center;
@@ -7,7 +11,7 @@
   flex-direction: column;   /* 로고와 폼 수직 정렬 */
 }
 
-/* ✅ 로그인/회원가입 박스 꾸미기 */
+/* 로그인/회원가입 박스 */
 .form-wrapper {
   width: 100%;
   max-width: 400px;
@@ -18,18 +22,11 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* ✅ 로고 이미지 가운데 정렬 */
-.logo {
-  text-align: center;
-  margin-bottom: 20px;
-}
+/* 로고 */
+.logo { text-align: center; margin-bottom: 20px; }
+.logo img { width: 180px; height: auto; }
 
-.logo img {
-  width: 180px;
-  height: auto;
-}
-
-/* ✅ 폼 입력 필드 */
+/* 폼 입력 */
 .form-container input {
   width: 100%;
   padding: 12px;
@@ -37,7 +34,6 @@
   box-sizing: border-box;
   font-size: 16px;
 }
-
 .form-container button {
   width: 100%;
   padding: 12px;
@@ -48,12 +44,88 @@
   cursor: pointer;
   border-radius: 4px;
 }
+.form-container button:hover { background-color: #0056b3; }
+.form-container p { margin-top: 10px; text-align: center; }
 
-.form-container button:hover {
-  background-color: #0056b3;
+/* ===============================
+   대시보드 카드/버튼
+   =============================== */
+
+.dash-container{
+  width: min(1024px, 92vw);
+  backdrop-filter: blur(8px);
+  background: rgba(255,255,255,.7);
+  border: 1px solid rgba(0,0,0,.06);
+  border-radius: 24px; padding: 24px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.06);
+}
+.dash-header{ display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+.user-chip{ display:flex; gap:12px; align-items:center; }
+.avatar{
+  width:48px;height:48px;border-radius:50%;
+  background: linear-gradient(135deg,#6366f1,#22c55e);
+  color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.6);
+}
+.greet h2{ margin:0; font-size:22px; }
+.greet p{ margin:2px 0 0;color:#6b7280;font-size:14px;}
+.time-badge{
+  font-size:14px; padding:8px 12px; border-radius:9999px; background:#111827; color:#fff;
+  box-shadow: 0 2px 10px rgba(17,24,39,.2);
 }
 
-.form-container p {
-  margin-top: 10px;
-  text-align: center;
+.card-grid{
+  margin-top:18px; display:grid; gap:14px;
+  grid-template-columns: repeat(auto-fit, minmax(220px,1fr));
+}
+.card{
+  background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:18px;
+  transition:.2s ease; position:relative; overflow:hidden;
+}
+.card:hover{ transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.06); }
+.card .emoji{ font-size:28px; }
+.card h3{ margin:10px 0 6px; font-size:18px; }
+.card p{ margin:0; color:#6b7280; font-size:14px; }
+.card .actions{ margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; }
+
+.btn{
+  appearance:none; border:0; cursor:pointer; padding:10px 12px; border-radius:12px;
+  background:#111827; color:#fff; font-size:14px; transition:.15s ease;
+}
+.btn:hover{ filter:brightness(1.02); transform: translateY(-1px); }
+.btn.secondary{ background:#f3f4f6; color:#111827; }
+.footer{ margin-top:18px; color:#9ca3af; font-size:12px; text-align:center; }
+
+/* ===============================
+   대시보드 배경 + 휘날리는 로고 (wave)
+   =============================== */
+
+/* 대시보드 래퍼 */
+.dash-wrap{
+  position:relative;        /* bg-flag 절대배치 기준 */
+  isolation:isolate;        /* 배경 블렌드가 카드에 영향 안 주도록 */
+  min-height:100vh;
+  display:flex; align-items:center; justify-content:center;
+  background:
+    radial-gradient(1200px 500px at 10% -10%, #eef2ff 0%, transparent 60%),
+    radial-gradient(1000px 500px at 110% 10%, #f0fdf4 0%, transparent 60%),
+    linear-gradient(180deg, #fafafa, #f5f7fb);
+  padding:40px 16px;
+}
+
+/* 뒤쪽 로고 레이어 */
+.bg-flag{
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  pointer-events:none; z-index:0; opacity:.07;     /* 투명도 조절 */
+  mix-blend-mode:multiply;                          /* 흰 배경과 자연스럽게 섞임 */
+}
+.bg-flag svg{ width:min(820px, 70vw); height:auto; filter:blur(.3px); }
+
+/* 실제 콘텐츠 레이어 */
+.content-layer{ position:relative; z-index:1; }
+
+/* 모션 줄이기(접근성) */
+@media (prefers-reduced-motion: reduce){
+  .bg-flag svg{ animation:none!important }
 }

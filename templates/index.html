@@ -1,206 +1,369 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <title>와이즈코아 점심 메뉴 지도</title>
+  <meta charset="UTF-8" />
+  <title>와이즈코아 점심 메뉴 지도 — 업그레이드</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: sans-serif;
+    :root{
+      --bg:#f3f4f6; --card:#ffffff; --text:#111827; --muted:#6b7280; --line:#e5e7eb;
+      --brand:#111827; --brand-2:#f3f4f6; --accent:#2563eb; --chip:#eef2ff; --chip-text:#3730a3;
     }
-    #map {
-      width: 100%;
-      height: 70vh;
+    .dark{
+      --bg:#0f172a; --card:#0b1223; --text:#e5e7eb; --muted:#94a3b8; --line:#1f2a44;
+      --brand:#111827; --brand-2:#0b1223; --accent:#60a5fa; --chip:#1d2a49; --chip-text:#bfdbfe;
     }
-    #lunch-recommendation {
-      height: 25vh;
-      padding: 35px 15px;
-      background-color: #f9f9f9;
-      border-top: 1px solid #ccc;
-      text-align: center;
-    }
-    #recommend-button {
-      padding: 5px 15px;
-      font-size: 25px;
-      cursor: pointer;
-      margin-top: 5px;
-      margin-bottom: 5px;
-    }
-    #result {
-      font-size: 15px;
-      margin-top: 10px;
-      margin-bottom: 10px;
-    }
-    #comment-box {
-      display: none;
-      padding: 20px;
-      border-top: 1px solid #ccc;
-      background-color: #fff;
-      position: relative;
-    }
-    #comment-list p {
-      margin: 5px 0;
-    }
-    .star {
-      font-size: 25px;
-      color: #ccc;
-      cursor: pointer;
-    }
-    .star.selected {
-      color: gold;
-    }
-    #rating-info {
-      margin-top: 5px;
-      font-size: 14px;
-    }
-    #rating-submit {
-      margin-top: 10px;
-    }
-    #average-rating {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      font-size: 20px;
-      font-weight: bold;
-      color: #333;
-    }
+    *{box-sizing:border-box}
+    html, body {margin:0; padding:0; height:100%; font-family:system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color:var(--text); background:var(--bg);}    
+    #app{display:grid; grid-template-rows:auto 1fr auto; min-height:100vh}
+
+    /* 헤더 */
+    .header{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20}
+    .title{display:flex; gap:10px; align-items:center}
+    .title h1{margin:0; font-size:18px}
+    .actions{display:flex; gap:8px}
+    .btn{height:36px; padding:0 12px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--text); cursor:pointer}
+    .btn.primary{background:var(--accent); color:#fff; border:0}
+    .btn.ghost{background:transparent}
+
+    /* 레이아웃 */
+    .main{display:grid; grid-template-columns: 340px 1fr; gap:0; min-height:0}
+    .sidebar{background:var(--card); border-right:1px solid var(--line); display:flex; flex-direction:column; min-height:0}
+    .sidebar .filters{padding:12px; border-bottom:1px solid var(--line); display:grid; grid-template-columns:1fr 1fr; gap:8px}
+    .sidebar .filters select, .sidebar .filters input{height:34px; padding:0 10px; border-radius:10px; border:1px solid var(--line); background:#fff}
+    .dark .sidebar .filters select, .dark .sidebar .filters input{background:#0b1223; color:var(--text)}
+    .sidebar .filters .full{grid-column:1 / -1}
+    .list{overflow:auto; padding:8px}
+    .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px; margin:8px 0}
+    .item{display:grid; grid-template-columns: 1fr auto; gap:6px; align-items:center}
+    .item h3{margin:0; font-size:16px}
+    .item small{color:var(--muted)}
+    .chip{display:inline-block; padding:3px 8px; border-radius:999px; background:var(--chip); color:var(--chip-text); font-size:12px; margin-right:4px}
+    .row{display:flex; gap:6px; flex-wrap:wrap}
+
+    /* 지도 */
+    #map {width:100%; height: 70vh;}
+    .panel{background:var(--card); border-top:1px solid var(--line); padding:14px; box-shadow:0 -6px 16px rgba(0,0,0,.04)}
+    .panel h2{margin:0 0 10px; font-size:20px; display:flex; align-items:center; gap:6px}
+    .cta{display:flex; gap:10px; align-items:center; justify-content:center; margin:10px 0}
+    .cta .btn{box-shadow:0 8px 20px rgba(17,24,39,.12)}
+    .result{margin-top:6px; text-align:center; color:var(--muted); font-size:15px}
+    .history{margin-top:8px; color:var(--muted); font-size:13px; text-align:center}
+    .history .pill{display:inline-block; padding:4px 10px; border-radius:999px; background:var(--chip); color:var(--chip-text); margin:4px}
+
+    /* 인포윈도우 */
+    .iw{padding:8px; font-size:14px; line-height:1.35}
+    .iw b{display:block; margin-bottom:4px}
+    .iw small{color:var(--muted)}
+    .iw .btns{margin-top:6px; display:flex; gap:6px; flex-wrap:wrap}
+    .iw .btns button{height:28px; padding:0 10px; border-radius:8px; border:1px solid var(--line); background:#fff; cursor:pointer}
+    .iw .btns a button{background:var(--accent); color:#fff; border:0}
+    .iw .btns .fav{background:#fde68a; border-color:#fcd34d}
+
+    /* 댓글/별점 */
+    #comment-box{display:none; padding:16px; background:var(--card); border:1px solid var(--line); border-radius:14px; position:relative; margin-top:12px}
+    #comment-title{margin:0 0 8px}
+    #average-rating{position:absolute; top:14px; right:14px; font-size:14px; color:var(--muted)}
+    .stars .star{font-size:22px; color:#ccc; cursor:pointer}
+    .stars .star.selected{color:gold}
+    #rating-info{margin-top:6px; font-size:13px; color:var(--muted)}
+    #rating-submit{margin-top:10px; height:34px; padding:0 12px; border-radius:8px; border:0; background:var(--accent); color:#fff; cursor:pointer}
+    #comment-list p{margin:6px 0; padding-bottom:6px; border-bottom:1px dashed var(--line)}
+    textarea{width:100%; padding:10px; border:1px solid var(--line); border-radius:10px; resize:vertical}
+
+    /* 토스트 */
+    .toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#111827; color:#fff; padding:10px 14px; border-radius:12px; font-size:14px; opacity:0; pointer-events:none; transition:.25s; z-index:50}
+    .toast.show{opacity:1}
+
+    /* 반응형 */
+    @media (max-width: 960px){ .main{ grid-template-columns: 1fr } .sidebar{ order:2 } }
   </style>
 </head>
 <body>
-
-  <!-- 지도 -->
-  <div id="map"></div>
-
-  <!-- 점심 추천 영역 -->
-  <div id="lunch-recommendation">
-    <h2>🍱 오늘 뭐 먹지?</h2>
-    <button id="recommend-button">점심메뉴 추천받기</button>
-    <div id="result">버튼을 눌러보세요!</div>
-  </div>
-
-  <!-- 댓글 + 별점 입력창 -->
-  <div id="comment-box">
-    <h3 id="comment-title"></h3>
-
-    <!-- 평균 별점 (오른쪽 상단) -->
-    <div id="average-rating">⭐ 평균 별점: - / 5</div>
-
-    <!-- ⭐ 별점 선택 -->
-    <div id="rating-stars">
-      <span class="star" data-value="1">★</span>
-      <span class="star" data-value="2">★</span>
-      <span class="star" data-value="3">★</span>
-      <span class="star" data-value="4">★</span>
-      <span class="star" data-value="5">★</span>
+<div id="app">
+  <div class="header">
+    <div class="title">
+      <h1>🍱 와이즈코아 점심 지도</h1>
+      <span class="chip" id="countChip">0곳</span>
     </div>
-
-    <div id="rating-info">별점을 선택해주세요.</div>
-    <button id="rating-submit">별점 등록</button>
-
-    <!-- 댓글 목록 -->
-    <div id="comment-list"></div>
-
-    <!-- 댓글 입력 -->
-    <textarea id="comment-input" rows="3" style="width:100%;"></textarea>
-    <br>
-    <button id="comment-submit">댓글 등록</button>
+    <div class="actions">
+      <button class="btn" id="darkToggle">다크모드</button>
+      <button class="btn" id="resetFav">즐겨찾기 초기화</button>
+    </div>
   </div>
 
+ HEAD
   <!-- Kakao 지도 API -->
   <script src="//kakaoapi"></script>
 
-  <!-- comment.js + rating.js 연결 -->
-  <script src="{{ url_for('static', filename='js/comment.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/rating.js') }}"></script>
+  <div class="main">
+    <aside class="sidebar">
+      <div class="filters">
+        <select id="tag" class="full">
+          <option value="">전체</option>
+          <option value="국수">국수</option>
+          <option value="분식">분식</option>
+          <option value="한식">한식</option>
+          <option value="중식">중식</option>
+          <option value="일식">일식</option>
+          <option value="김밥">김밥</option>
+          <option value="기타">기타</option>
+          <option value="즐겨찾기">⭐ 즐겨찾기만</option>
+        </select>
+        <input id="search" type="search" placeholder="가게 이름 검색" class="full" />
+        <select id="dist">
+          <option value="">거리 제한 없음</option>
+          <option value="200">200m 이내</option>
+          <option value="300">300m 이내</option>
+          <option value="500">500m 이내</option>
+        </select>
+        <select id="sort">
+          <option value="name">이름순</option>
+          <option value="fav">즐겨찾기 우선</option>
+          <option value="near">가까운순</option>
+          <option value="recent">최근 추천 제외</option>
+        </select>
+      </div>
+      <div class="list" id="list"></div>
+    </aside>
+ 81c0052 (Clean: ignore db/pyc and remove tracked artifacts)
 
-  <!-- 지도 및 추천 기능 -->
-  <script>
-    kakao.maps.load(function () {
-      const mapContainer = document.getElementById('map');
-      const mapOption = {
-        center: new kakao.maps.LatLng(37.5089, 127.0226),
-        level: 2
-      };
-      const map = new kakao.maps.Map(mapContainer, mapOption);
+    <section>
+      <div id="map"></div>
+      <div class="panel">
+        <h2>오늘 뭐 먹지?</h2>
+        <div class="cta">
+          <button class="btn primary" id="recommend">점심메뉴 추천받기</button>
+          <button class="btn" id="centerBtn">회사로 이동</button>
+          <a href="{{ url_for('dashboard') }}">
+          <button class="btn">대시보드로 돌아가기</button>
+          </a>
+        </div>
+        <div id="result" class="result">버튼을 눌러보세요!</div>
+        <div id="history" class="history"></div>
 
-      const markerImage = new kakao.maps.MarkerImage(
-        "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png",
-        new kakao.maps.Size(36, 36)
-      );
+        <!-- 댓글 + 별점 -->
+        <div id="comment-box">
+          <h3 id="comment-title">가게 이름</h3>
+          <div id="average-rating">⭐ 평균 별점: - / 5</div>
+          <div class="stars" id="rating-stars">
+            <span class="star" data-value="1">★</span>
+            <span class="star" data-value="2">★</span>
+            <span class="star" data-value="3">★</span>
+            <span class="star" data-value="4">★</span>
+            <span class="star" data-value="5">★</span>
+          </div>
+          <div id="rating-info">별점을 선택해주세요.</div>
+          <button id="rating-submit">별점 등록</button>
+          <div class="card" style="margin-top:12px">
+            <div id="comment-list"></div>
+            <textarea id="comment-input" rows="3" placeholder="댓글을 입력하세요"></textarea>
+            <br />
+            <button id="comment-submit" class="btn" style="margin-top:8px">댓글 등록</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
 
-      const restaurants = [
-        { name: "싸다김밥", lat: 37.510604190067994, lng: 127.02052018667223 },
-        { name: "마님김밥", lat: 37.51081997319398, lng: 127.02300574881384 },
-        { name: "저스트카츠", lat: 37.5107478900872, lng: 127.02301986491916 },
-        { name: "탕탕집", lat: 37.51064201820906, lng: 127.02303962589788 },
-        { name: "부대찌개", lat: 37.5101642869389, lng: 127.02403763026003 },
-        { name: "순대국", lat: 37.50963517755151, lng: 127.02287531540941 },
-        { name: "보승회관", lat: 37.50850679867281, lng: 127.02219635636679 },
-        { name: "회덮밥,알밥", lat: 37.50782845013411, lng: 127.02394922764212 },
-        { name: "서브웨이", lat: 37.50950926196295, lng: 127.02168203016542 },
-        { name: "뼈해장국집", lat: 37.51097097543822, lng: 127.02257033640775 },
-        { name: "본죽,비빔밥", lat: 37.510563108050185, lng: 127.02340719469315 },
-        { name: "순두부", lat: 37.510491022649205, lng: 127.02343262090795 },
-        { name: "쌀국수", lat: 37.51081583910813, lng: 127.02101508308174 },
-        { name: "시장 분식 국수", lat: 37.509621530803585, lng: 127.0235454532333 },
-        { name: "제육,김치찌개", lat: 37.51009019196013, lng: 127.02283869519349 },
-        { name: "손국시", lat: 37.509986531382246, lng: 127.02307052821175 },
-        { name: "함바집,한식뷔페?", lat: 37.50976133295169, lng: 127.02279900847579 },
-        { name: "마라탕", lat:  37.510382583361285, lng: 127.02498778462514 }
-      ];
+  <div class="toast" id="toast">복사되었습니다.</div>
+</div>
 
-      let currentInfoWindow = null;
+<!-- Kakao 지도 API -->
+<script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=cbbbf1aa58bda1a4274eba3bcecf5ad8&autoload=false"></script>
+<!-- 외부 스크립트(사용자 구현) -->
+<script src="{{ url_for('static', filename='js/comment.js') }}"></script>
+<script src="{{ url_for('static', filename='js/rating.js') }}"></script>
 
-      restaurants.forEach(r => {
-        const marker = new kakao.maps.Marker({
-          position: new kakao.maps.LatLng(r.lat, r.lng),
-          map: map,
-          title: r.name,
-          image: markerImage
-        });
+<script>
+// ===== 전역 유틸 =====
+const toast = document.getElementById('toast');
+function showToast(msg){ toast.textContent=msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),1300); }
+function favKey(name){ return `fav:${name}` }
+function isFav(name){ return localStorage.getItem(favKey(name))==='1' }
+function toggleFav(name){ const k=favKey(name); const v=isFav(name)?'0':'1'; localStorage.setItem(k,v); showToast(v==='1'?'즐겨찾기에 추가!':'즐겨찾기 해제!'); renderList(); filterAndRenderMarkers(); }
+function pushHistory(name){ const k='lunch:history'; const arr = JSON.parse(localStorage.getItem(k) || '[]'); arr.unshift({name, t: Date.now()}); localStorage.setItem(k, JSON.stringify(arr.slice(0,8))); renderHistory(); }
+function renderHistory(){ const host = document.getElementById('history'); const arr = JSON.parse(localStorage.getItem('lunch:history') || '[]'); host.innerHTML = arr.length ? '최근 추천: ' + arr.map(x=>`<span class="pill">${x.name}</span>`).join('') : ''; }
+function lastPickedNames(n=3){ const arr = JSON.parse(localStorage.getItem('lunch:history') || '[]'); return new Set(arr.slice(0,n).map(x=>x.name)); }
+function copyLink(name, lat, lng){ const url = `https://map.kakao.com/link/to/${encodeURIComponent(name)},${lat},${lng}`; navigator.clipboard.writeText(url).then(()=>showToast('카카오맵 길찾기 링크 복사!')); }
+function kakaoPlaceUrl(id){ return `https://place.map.kakao.com/${id}` }
+function showComments(name){ const box=document.getElementById('comment-box'); document.getElementById('comment-title').textContent=name; box.style.display='block'; if (window.loadCommentsFor) window.loadCommentsFor(name); if (window.loadRatingFor) window.loadRatingFor(name); }
+function showRating(name){ showComments(name); }
 
-        const infoWindow = new kakao.maps.InfoWindow({
-          content: `<div style="padding:8px; font-size:16px;">
-                      ${r.name}<br>
-                      <button onclick="showComments('${r.name}')">댓글 보기</button>
-                      <button onclick="showRating('${r.name}')">별점 보기</button>
-                    </div>`
-        });
+// ===== 데이터 =====
+const OFFICE = { lat: 37.510488831985356, lng: 127.02311875262234 };
+const restaurants = [
+  { name: "싸다김밥", lat: 37.510604190067994, lng: 127.02052018667223, tags:["김밥","분식"], placeId: 1435494356 },
+  { name: "마님김밥", lat: 37.51081997319398, lng: 127.02300574881384, tags:["김밥","분식"], placeId: 1246921124 },
+  { name: "저스트카츠", lat: 37.5107478900872,  lng: 127.02301986491916, tags:["일식"], placeId: 157382006 },
+  { name: "탕탕집",   lat: 37.51064201820906, lng: 127.02303962589788, tags:["한식"], placeId: 170461079 },
+  { name: "부대찌개", lat: 37.5101642869389,  lng: 127.02403763026003, tags:["한식"], placeId: 1223656944 },
+  { name: "순대국",   lat: 37.50963517755151, lng: 127.02287531540941, tags:["한식"], placeId: 912621785 },
+  { name: "보승회관", lat: 37.50850679867281, lng: 127.02219635636679, tags:["한식"], placeId: 1527942162 },
+  { name: "회덮밥,알밥", lat: 37.50782845013411, lng: 127.02394922764212, tags:["일식"], placeId: 535918986 },
+  { name: "서브웨이", lat: 37.50950926196295, lng: 127.02168203016542, tags:["기타"] , placeId: 26484597 },
+  { name: "뼈해장국집", lat: 37.51097097543822, lng: 127.02257033640775, tags:["한식"] , placeId: 243565590 },
+  { name: "본죽,비빔밥", lat: 37.510563108050185,lng: 127.02340719469315, tags:["한식"] , placeId: 156295439 },
+  { name: "순두부",   lat: 37.510491022649205, lng: 127.02343262090795, tags:["한식"] , placeId: 1385258074},
+  { name: "쌀국수",   lat: 37.51081583910813,  lng: 127.02101508308174, tags:["중식"] , placeId:1174806960 },
+  { name: "시장 한양김밥국수", lat: 37.509621530803585, lng: 127.0235454532333, tags:["국수","분식","김밥"] , placeId: 729741537 },
+  { name: "제육,김치찌개 돼지가", lat: 37.51009019196013, lng: 127.02283869519349, tags:["한식"], placeId: 1771055449 },
+  { name: "손국시",   lat: 37.509986531382246, lng: 127.02307052821175, tags:["국수","한식"] , placeId: 13624172  },
+  { name: "함바집,한식뷔페", lat: 37.50976133295169, lng: 127.02279900847579, tags:["한식"], placeId: 642462680 },
+  { name: "마라탕",   lat: 37.510382583361285, lng: 127.02498778462514, tags:["중식"], placeId: 1827179958 },
+  { name: "오봉집",   lat: 37.50836688742737,  lng: 127.0235167835929,  tags:["한식"], placeId: 928511632 },
+  { name: "편의점",   lat: 37.510560860579325, lng: 127.02338174524247, tags:["기타"], placeId: 19205791 },
+  { name: "부엉이식당", lat: 37.51173627012451, lng: 127.02532755787342, tags:["한식"], placeId: 1465574297 },
+  { name: "뼈찜관",   lat: 37.50909452023658, lng: 127.02315508118194, tags:["한식"], placeId: 1074225216 },
+  { name: "브루클린펍",  lat: 37.51119376664262, lng: 127.02363077698234, tags:["양식"], placeId: 1667365640}
+];
 
-        r.marker = marker;
-        r.infoWindow = infoWindow;
+// 거리 계산 (미터)
+function distanceMeters(a, b){
+  const R=6371000; const toRad=x=>x*Math.PI/180;
+  const dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lng);
+  const A = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(A));
+}
 
-        kakao.maps.event.addListener(marker, 'click', function () {
-          if (currentInfoWindow) {
-            currentInfoWindow.close();
-            if (currentInfoWindow === infoWindow) {
-              currentInfoWindow = null;
-              return;
-            }
-          }
-          infoWindow.open(map, marker);
-          currentInfoWindow = infoWindow;
-        });
-      });
+// ===== Kakao 지도 초기화 =====
+let map, markerImage, currentInfoWindow=null;
+const markers = new Map(); // name -> marker
 
-      const button = document.getElementById("recommend-button");
-      const result = document.getElementById("result");
+document.getElementById('centerBtn').onclick = () => { if(map){ map.setCenter(new kakao.maps.LatLng(OFFICE.lat, OFFICE.lng)); map.setLevel(2); }}
 
-      button.addEventListener("click", () => {
-        const random = restaurants[Math.floor(Math.random() * restaurants.length)];
-        result.innerHTML = `오늘은 <strong>${random.name}</strong> 어때요? 😋`;
+document.getElementById('darkToggle').onclick = () => { document.body.classList.toggle('dark'); localStorage.setItem('lunch:dark', document.body.classList.contains('dark')?'1':'0'); };
+if(localStorage.getItem('lunch:dark')==='1') document.body.classList.add('dark');
 
-        const moveLatLng = new kakao.maps.LatLng(random.lat, random.lng);
-        map.setCenter(moveLatLng);
-        map.setLevel(2);
+document.getElementById('resetFav').onclick = () => { Object.keys(localStorage).forEach(k=>{ if(k.startsWith('fav:')) localStorage.removeItem(k); }); showToast('즐겨찾기 초기화 완료'); renderList(); filterAndRenderMarkers(); };
 
-        if (currentInfoWindow) currentInfoWindow.close();
-        random.infoWindow.open(map, random.marker);
-        currentInfoWindow = random.infoWindow;
-      });
+kakao.maps.load(function(){
+  map = new kakao.maps.Map(document.getElementById('map'), { center: new kakao.maps.LatLng(OFFICE.lat, OFFICE.lng), level: 2 });
+  markerImage = new kakao.maps.MarkerImage("https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png", new kakao.maps.Size(36,36));
+
+  // 마커 구성
+  restaurants.forEach(r=>{
+    const marker = new kakao.maps.Marker({ position: new kakao.maps.LatLng(r.lat, r.lng), map, title:r.name, image: markerImage });
+    const reviewBtn = r.placeId ? `<a href="${kakaoPlaceUrl(r.placeId)}" target="_blank"><button>리뷰</button></a>` : '';
+    const iw = new kakao.maps.InfoWindow({ content:
+      `<div class="iw">
+        <b>${r.name}</b>
+        <small>${(r.tags||[]).join(' / ')}</small>
+        <div class="btns">
+          ${reviewBtn}
+          <button onclick="showComments('${r.name}')">댓글</button>
+          <button onclick="showRating('${r.name}')">별점</button>
+          <button class="fav" onclick="toggleFav('${r.name}')">⭐ 즐겨찾기</button>
+          <button onclick="copyLink('${r.name}', ${r.lat}, ${r.lng})">길찾기 링크</button>
+        </div>
+      </div>` });
+    r.marker = marker; r.infoWindow = iw; markers.set(r.name, marker);
+
+    kakao.maps.event.addListener(marker, 'click', function(){
+      if (currentInfoWindow) currentInfoWindow.close();
+      iw.open(map, marker); currentInfoWindow = iw; focusListItem(r.name);
     });
-  </script>
+
+    kakao.maps.event.addListener(marker, 'dblclick', function(){ if(r.placeId) window.open(kakaoPlaceUrl(r.placeId), '_blank'); });
+  });
+
+  renderList();
+  filterAndRenderMarkers();
+  renderHistory();
+});
+
+// ===== 리스트 렌더 & 필터 =====
+const listHost = document.getElementById('list');
+const countChip = document.getElementById('countChip');
+const tagSel = document.getElementById('tag');
+const searchInput = document.getElementById('search');
+const distSel = document.getElementById('dist');
+const sortSel = document.getElementById('sort');
+
+tagSel.onchange = distSel.onchange = sortSel.onchange = () => { renderList(); filterAndRenderMarkers(); };
+searchInput.oninput = () => { renderList(); };
+
+function filtered(){
+  const tag = tagSel.value; const q = searchInput.value.trim(); const dist = +(distSel.value||0);
+  const lastSet = lastPickedNames(3); // 최근 3회 제외 옵션용
+  let arr = restaurants.map(r=> ({...r}));
+  if(tag==='즐겨찾기') arr = arr.filter(r=>isFav(r.name));
+  else if(tag) arr = arr.filter(r=> r.tags && r.tags.includes(tag));
+  if(q) arr = arr.filter(r=> r.name.toLowerCase().includes(q.toLowerCase()));
+  if(dist){ arr = arr.filter(r=> distanceMeters(OFFICE, r) <= dist); }
+  const sort = sortSel.value;
+  if(sort==='fav') arr.sort((a,b)=> (isFav(b.name)-isFav(a.name)) || a.name.localeCompare(b.name));
+  else if(sort==='near') arr.sort((a,b)=> distanceMeters(OFFICE,a)-distanceMeters(OFFICE,b));
+  else if(sort==='recent') arr = arr.filter(r=> !lastSet.has(r.name));
+  else arr.sort((a,b)=> a.name.localeCompare(b.name));
+  return arr;
+}
+
+function renderList(){
+  const arr = filtered();
+  countChip.textContent = `${arr.length}곳`;
+  listHost.innerHTML = '';
+  arr.forEach(r=>{
+    const d = Math.round(distanceMeters(OFFICE, r));
+    const el = document.createElement('div'); el.className='card';
+    el.innerHTML = `
+      <div class="item">
+        <div>
+          <h3>${r.name} ${isFav(r.name)?'⭐':''}</h3>
+          <small>${(r.tags||[]).map(t=>`<span class='chip'>${t}</span>`).join(' ')} · 약 ${d}m</small>
+        </div>
+        <div class="row">
+          <button class="btn" data-act="center">지도</button>
+          <button class="btn" data-act="open">열기</button>
+          <button class="btn" data-act="fav">⭐</button>
+        </div>
+      </div>
+    `;
+    el.querySelector('[data-act="center"]').onclick = ()=>{ centerAndOpen(r); };
+    el.querySelector('[data-act="open"]').onclick = ()=>{ showComments(r.name); centerAndOpen(r); };
+    el.querySelector('[data-act="fav"]').onclick = ()=>{ toggleFav(r.name); renderList(); };
+    el.dataset.name = r.name;
+    listHost.appendChild(el);
+  });
+}
+
+function focusListItem(name){
+  const el = [...listHost.children].find(x=>x.dataset.name===name); if(!el) return; el.scrollIntoView({behavior:'smooth', block:'center'}); el.style.outline='2px solid var(--accent)'; setTimeout(()=> el.style.outline='none', 1200);
+}
+
+function centerAndOpen(r){
+  const pos = new kakao.maps.LatLng(r.lat, r.lng); map.setCenter(pos); map.setLevel(2);
+  if (currentInfoWindow) currentInfoWindow.close(); r.infoWindow.open(map, r.marker); currentInfoWindow=r.infoWindow;
+}
+
+function filterAndRenderMarkers(){
+  const names = new Set(filtered().map(r=>r.name));
+  restaurants.forEach(r=>{ if(!r.marker) return; r.marker.setMap( names.has(r.name) ? map : null ); });
+}
+
+// ===== 추천 로직 =====
+function pickWeighted(list){
+  const lastSet = lastPickedNames(2); // 바로 직전 2회는 가중치 낮춤
+  const weights = list.map(r=>{
+    let w = isFav(r.name) ? 4 : 1; // 즐겨찾기 가중치
+    if(lastSet.has(r.name)) w *= 0.3; // 최근 선택 감점
+    return w;
+  });
+  const total = weights.reduce((a,b)=>a+b,0); let rnd=Math.random()*total;
+  for(let i=0;i<list.length;i++){ if((rnd-=weights[i])<0) return list[i]; }
+  return list[0];
+}
+
+document.getElementById('recommend').addEventListener('click', ()=>{
+  const arr = filtered(); const result = document.getElementById('result');
+  if(arr.length===0){ result.innerHTML = '조건에 맞는 후보가 없어요 😥'; return; }
+  const pick = pickWeighted(arr);
+  const review = pick.placeId? ` <a href="${kakaoPlaceUrl(pick.placeId)}" target="_blank">리뷰</a>`:'';
+  result.innerHTML = `오늘은 <strong>${pick.name}</strong> 어떤가요? 😋${review}`;
+  centerAndOpen(pick); pushHistory(pick.name);
+});
+
+renderHistory();
+</script>
 </body>
 </html>

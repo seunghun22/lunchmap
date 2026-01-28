@@ -8,11 +8,11 @@ document.addEventListener("DOMContentLoaded", function () {
   // 외부에서 접근 가능하도록 선언
   window.selectedPlace = null;
 
-  // ✅ 댓글 보기
+  // 댓글 보기
   window.showComments = function (placeName) {
     window.selectedPlace = placeName;
 
-    // 1️⃣ 댓글 먼저 불러오기
+    // 댓글 먼저 불러오기
     fetch(`/get_comments?place=${encodeURIComponent(placeName)}`)
       .then(res => res.json())
       .then(data => {
@@ -27,17 +27,17 @@ document.addEventListener("DOMContentLoaded", function () {
         `).join("");
         commentInput.value = "";
 
-        // 2️⃣ 별점 초기화 + 평균 별점 다시 불러오기
+        // 별점 초기화 + 평균 별점 다시 불러오기
         if (typeof updateStarUI === "function") updateStarUI(0);
         if (typeof loadAverageRating === "function") loadAverageRating(placeName);
 
-        // 3️⃣ UI 표시 + 스크롤
+        // UI 표시 + 스크롤
         commentBox.style.display = "block";
         commentBox.scrollIntoView({ behavior: "smooth" });
       });
   };
 
-  // ✅ 댓글 등록 (로그인 기반)
+  // 댓글 등록 (로그인 기반)
   commentSubmit.addEventListener("click", () => {
     const content = commentInput.value.trim();
     if (!content || !window.selectedPlace) return;
@@ -67,7 +67,7 @@ document.addEventListener("DOMContentLoaded", function () {
       });
   });
 
-  // ✅ 댓글 삭제 (로그인 기반)
+  // 댓글 삭제 (로그인 기반)
   window.deleteComment = function (commentId) {
     fetch("/delete_comment", {
       method: "POST",
